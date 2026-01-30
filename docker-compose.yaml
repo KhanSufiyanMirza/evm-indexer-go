@@ -1,0 +1,27 @@
+services:
+  evm-indexer-go-postgres:
+    image: postgres:14-alpine
+    container_name: evm-indexer-go-postgres
+    hostname: evm-indexer-go-postgres
+    environment:
+      POSTGRES_USER: evm_indexer
+      POSTGRES_PASSWORD: strongpassword
+      POSTGRES_DB: evm_indexer_go
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evm_indexer"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - evm-indexer-go-network
+
+networks:
+  evm-indexer-go-network:
+    external: true
+
+volumes:
+  postgres_data:
