@@ -52,10 +52,10 @@ func main() {
 	defer client.Close()
 
 	// 3. Setup Fetcher
-	fetcher := gateway.NewBlockFetcherWithRetry(client)
+	fetcher := gateway.NewBlockFetcher(client)
 
 	// 4. Determine Range
-	latestBlockNumberOnchain, err := gateway.GetBlockNumberWithRetry(context.Background(), client)
+	latestBlockNumberOnchain, err := fetcher.GetBlockNumberWithRetry(context.Background())
 	if err != nil {
 		log.Fatalf("Failed to get latest block: %v", err)
 	}

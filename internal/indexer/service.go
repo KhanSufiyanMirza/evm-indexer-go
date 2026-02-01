@@ -25,7 +25,7 @@ func NewIndexer(fetcher gateway.BlockFetcher, store *storage.Store) *Indexer {
 func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) error {
 	for num := startBlock; num <= endBlock; num++ {
 		// 1. Fetch
-		block, err := i.fetcher(ctx, uint64(num))
+		block, err := i.fetcher.Fetch(ctx, uint64(num))
 		if err != nil {
 			log.Printf("Failed to fetch block %d: %v", num, err)
 			return err
