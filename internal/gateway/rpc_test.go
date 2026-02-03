@@ -69,12 +69,11 @@ func TestGetERC20TransfersInRange(t *testing.T) {
 
 	t.Logf("Fetched %d ERC20 Transfer logs between blocks %d and %d", len(logs), startBlock, endBlock)
 	for i, log := range logs {
-		from, to, value, err := DecodeERC20TransferLog(log)
-		if err != nil {
-			t.Logf("Failed to decode ERC20 Transfer Log %d: %v", i, err)
-		} else {
-			t.Logf("ERC20 Transfer Log %d: from=%s, to=%s, value=%s", i, from, to, value)
+		from, to, value, ok := DecodeERC20TransferLog(log)
+		if !ok {
+			continue
 		}
+		t.Logf("ERC20 Transfer Log %d: from=%s, to=%s, value=%s", i, from, to, value)
 		logKey := fmt.Sprintf("%s-%d", log.TxHash.String(), log.Index)
 		t.Logf("Log Key %d: %s", i, logKey)
 

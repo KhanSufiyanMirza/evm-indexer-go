@@ -54,10 +54,12 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) error {
 			return err
 		}
 		for _, transferLog := range erc20Transfers {
-			from, to, value, err := gateway.DecodeERC20TransferLog(transferLog)
-			if err != nil {
-				log.Printf("Failed to decode ERC20 Transfer Log for block %d: %v", num, err)
-				return err
+			from, to, value, ok := gateway.DecodeERC20TransferLog(transferLog)
+			if !ok {
+				// NOTE: ERC721 Transfer event has 4 topics and ERC20 Transfer event has 3 topics both have same signature
+				// so we can't differentiate between them just by signature
+				// log.Printf("Failed to decode Log for ERC20 Transfer for block %d could be ERC721 if topic count is 4, length: %d", num, len(transferLog.Topics))
+				continue
 			}
 			err = i.store.SaveERC20Transfer(ctx, sqlc.CreateERC20TransferParams{
 				TxHash:      transferLog.TxHash.String(),
