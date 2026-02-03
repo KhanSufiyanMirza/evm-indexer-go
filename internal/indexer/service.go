@@ -53,14 +53,17 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) error {
 			log.Printf("Failed to get ERC20 transfers for block %d: %v", num, err)
 			return err
 		}
+		count := 0
 		for _, transferLog := range erc20Transfers {
 			from, to, value, ok := gateway.DecodeERC20TransferLog(transferLog)
 			if !ok {
 				// NOTE: ERC721 Transfer event has 4 topics and ERC20 Transfer event has 3 topics both have same signature
 				// so we can't differentiate between them just by signature
+				// un-comment below line to log the error
 				// log.Printf("Failed to decode Log for ERC20 Transfer for block %d could be ERC721 if topic count is 4, length: %d", num, len(transferLog.Topics))
 				continue
 			}
+			count++
 			err = i.store.SaveERC20Transfer(ctx, sqlc.CreateERC20TransferParams{
 				TxHash:      transferLog.TxHash.String(),
 				LogIndex:    int32(transferLog.Index),
@@ -74,7 +77,7 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) error {
 				return err
 			}
 		}
-		log.Printf("Successfully indexed ERC20 Transfers for block %d and count: %d \n", num, len(erc20Transfers))
+		log.Printf("Successfully indexed ERC20 Transfers for block %d and count: %d \n", num, count)
 
 		// 3. Mark Processed (Guard)
 		// This step is conceptually mostly for tracking or if we had downstream jobs.
