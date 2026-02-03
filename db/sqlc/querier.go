@@ -10,14 +10,19 @@ import (
 
 type Querier interface {
 	CountBlocks(ctx context.Context) (int64, error)
+	CountERC20Transfers(ctx context.Context) (int64, error)
 	CreateBlock(ctx context.Context, arg CreateBlockParams) (CreateBlockRow, error)
+	CreateERC20Transfer(ctx context.Context, arg CreateERC20TransferParams) (CreateERC20TransferRow, error)
 	DeleteBlock(ctx context.Context, id int32) error
 	DeleteBlockByHash(ctx context.Context, hash string) error
 	GetBlockByHash(ctx context.Context, hash string) (GetBlockByHashRow, error)
 	GetBlockByID(ctx context.Context, id int32) (GetBlockByIDRow, error)
 	GetBlockByNumber(ctx context.Context, number int64) (GetBlockByNumberRow, error)
+	GetERC20Transfer(ctx context.Context, arg GetERC20TransferParams) (GetERC20TransferRow, error)
 	GetLatestBlockNumber(ctx context.Context) (int64, error)
+	GetLatestProcessedBlockNumber(ctx context.Context) (int64, error)
 	ListBlocks(ctx context.Context, arg ListBlocksParams) ([]ListBlocksRow, error)
+	ListERC20TransfersByTxHash(ctx context.Context, arg ListERC20TransfersByTxHashParams) ([]ListERC20TransfersByTxHashRow, error)
 	MarkBlockProcessed(ctx context.Context, number int64) error
 	UpdateBlock(ctx context.Context, arg UpdateBlockParams) (UpdateBlockRow, error)
 }

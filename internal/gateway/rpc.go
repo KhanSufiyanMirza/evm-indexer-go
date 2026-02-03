@@ -145,6 +145,17 @@ func (bf *blockFetcher) GetERC20TransfersInRange(ctx context.Context, startBlock
 
 	return logs, err
 }
+func DecodeERC20TransferLog(log types.Log) (from common.Address, to common.Address, value *big.Int, err error) {
+	if len(log.Topics) < 3 {
+		return common.Address{}, common.Address{}, nil, errors.New("invalid number of topics in ERC20 Transfer log")
+	}
+
+	from = common.BytesToAddress(log.Topics[1].Bytes())
+	to = common.BytesToAddress(log.Topics[2].Bytes())
+	value = new(big.Int).SetBytes(log.Data)
+
+	return from, to, value, nil
+}
 
 func isRetryableError(err error) bool {
 	if err == nil {

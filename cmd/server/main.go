@@ -61,7 +61,7 @@ func main() {
 	}
 	log.Printf("Latest Block No: %d \n", latestBlockNumberOnchain)
 
-	processedLastBlock, err := storageStore.GetLatestBlockNumber(context.Background())
+	processedLastBlock, err := storageStore.GetLatestProcessedBlockNumber(context.Background())
 	if err != nil {
 		startBlock, err := getStartBlock()
 		if err != nil {

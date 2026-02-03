@@ -174,6 +174,17 @@ func (q *Queries) GetLatestBlockNumber(ctx context.Context) (int64, error) {
 	return column_1, err
 }
 
+const getLatestProcessedBlockNumber = `-- name: GetLatestProcessedBlockNumber :one
+SELECT MAX(number)::Bigint FROM blocks WHERE processed_at IS NOT NULL
+`
+
+func (q *Queries) GetLatestProcessedBlockNumber(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, getLatestProcessedBlockNumber)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const listBlocks = `-- name: ListBlocks :many
 SELECT id, hash, number, parent_hash, timestamp
 FROM blocks

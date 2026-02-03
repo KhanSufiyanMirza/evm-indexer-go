@@ -19,3 +19,12 @@ type Block struct {
 	ProcessedAt pgtype.Timestamp `json:"processedAt"`
 	CreatedAt   pgtype.Timestamp `json:"createdAt"`
 }
+
+type Erc20Transfer struct {
+	TxHash      string         `json:"txHash"`
+	LogIndex    int32          `json:"logIndex"`
+	BlockNumber int64          `json:"blockNumber"`
+	FromAddress string         `json:"fromAddress"`
+	ToAddress   string         `json:"toAddress"`
+	Value       pgtype.Numeric `json:"value"`
+}

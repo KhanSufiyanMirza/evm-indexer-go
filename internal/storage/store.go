@@ -33,6 +33,17 @@ func (s *Store) SaveBlock(ctx context.Context, params sqlc.CreateBlockParams) er
 	}
 	return nil
 }
+func (s *Store) SaveERC20Transfer(ctx context.Context, params sqlc.CreateERC20TransferParams) error {
+	_, err := s.CreateERC20Transfer(ctx, params)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			log.Printf("ERC20 Transfer %s-%d already exists (idempotent skip)", params.TxHash, params.LogIndex)
+			return nil
+		}
+		return err
+	}
+	return nil
+}
 
 func (s *Store) MarkBlockProcessed(ctx context.Context, blockNumber int64) error {
 	return s.Store.MarkBlockProcessed(ctx, blockNumber)
@@ -40,4 +51,8 @@ func (s *Store) MarkBlockProcessed(ctx context.Context, blockNumber int64) error
 
 func (s *Store) GetLatestBlockNumber(ctx context.Context) (int64, error) {
 	return s.Store.GetLatestBlockNumber(ctx)
+}
+
+func (s *Store) GetLatestProcessedBlockNumber(ctx context.Context) (int64, error) {
+	return s.Store.GetLatestProcessedBlockNumber(ctx)
 }

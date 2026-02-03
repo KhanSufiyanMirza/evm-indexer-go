@@ -46,6 +46,9 @@ FROM blocks;
 -- name: GetLatestBlockNumber :one
 SELECT MAX(number)::Bigint FROM blocks;
 
+-- name: GetLatestProcessedBlockNumber :one
+SELECT MAX(number)::Bigint FROM blocks WHERE processed_at IS NOT NULL;
+
 -- name: MarkBlockProcessed :exec
 UPDATE blocks
 SET processed_at = NOW()
