@@ -84,3 +84,17 @@ The project includes a `makefile` to simplify common development tasks. Run `mak
 - `internal/`: Private application code
 - `docker-compose.yaml`: Infrastructure definition
 - `makefile`: Task automation
+## FAQs
+### How logs are fetched?
+- Block-based range
+- Not “latest”
+- One block at a time (for correctness)
+### why log_index matters?
+- multiple logs per txn and to uniquely identify txn
+- to prevent duplicate logs and overwriting
+- enables idempotency
+### failure scenario handled
+- RPC timeout
+- Process crash mid-block (restart from last processed block)
+- Duplicate block processing
+- Partial log insert

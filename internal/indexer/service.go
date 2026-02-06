@@ -34,7 +34,7 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) error {
 
 		// 2. Insert Block
 		// Note: CreateBlock uses ON CONFLICT DO NOTHING.
-		// If it exists, we get sql.ErrNoRows (handled by store.SaveBlock).
+		// If it exists, we get pgx.ErrNoRows (handled by store.SaveBlock).
 		// This is idempotent.
 		err = i.store.SaveBlock(ctx, sqlc.CreateBlockParams{
 			Hash:       block.Hash().String(),
@@ -64,6 +64,9 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) error {
 				continue
 			}
 			count++
+			// Note: CreateERC20Transfer uses ON CONFLICT DO NOTHING.
+			// If it exists, we get pgx.ErrNoRows (handled by store.SaveERC20Transfer).
+			// This is idempotent.
 			err = i.store.SaveERC20Transfer(ctx, sqlc.CreateERC20TransferParams{
 				TxHash:      transferLog.TxHash.String(),
 				LogIndex:    int32(transferLog.Index),
