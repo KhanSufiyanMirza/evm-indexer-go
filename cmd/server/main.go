@@ -81,17 +81,12 @@ func main() {
 	// 5. Run Indexer
 	idx := indexer.NewIndexer(fetcher, storageStore)
 
-	// Handle graceful shutdown
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	// We use signal.NotifyContext to handle graceful shutdown in background it
+	// spawns a new goroutine to wait for a signal and returns a context that is
+	// canceled when the signal is received.
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 
-	go func() {
-		sigCh := make(chan os.Signal, 1)
-		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-		<-sigCh
-		log.Println("Shutting down...")
-		cancel()
-	}()
 	startTime := time.Now()
 	if err := idx.Run(ctx, start, end); err != nil {
 		log.Printf("Indexer stopped with error: %v", err)

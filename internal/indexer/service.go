@@ -24,9 +24,19 @@ func NewIndexer(fetcher gateway.BlockFetcher, store *storage.Store) *Indexer {
 }
 
 func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) error {
+	// Use a separate context for operations to ensure the current block finishes processing
+	// even if the shutdown signal is received mid-processing.
+	opCtx := context.Background()
+
 	for num := startBlock; num <= endBlock; num++ {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+		}
+
 		// 1. Fetch
-		block, err := i.fetcher.Fetch(ctx, uint64(num))
+		block, err := i.fetcher.Fetch(opCtx, uint64(num))
 		if err != nil {
 			log.Printf("Failed to fetch block %d: %v", num, err)
 			return err
@@ -36,7 +46,7 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) error {
 		// Note: CreateBlock uses ON CONFLICT DO NOTHING.
 		// If it exists, we get pgx.ErrNoRows (handled by store.SaveBlock).
 		// This is idempotent.
-		err = i.store.SaveBlock(ctx, sqlc.CreateBlockParams{
+		err = i.store.SaveBlock(opCtx, sqlc.CreateBlockParams{
 			Hash:       block.Hash().String(),
 			Number:     block.Number().Int64(),
 			ParentHash: block.ParentHash().String(),
@@ -48,7 +58,7 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) error {
 		}
 
 		// 3. Insert ERC20 Transfers
-		erc20Transfers, err := i.fetcher.GetERC20TransfersInRange(ctx, block.NumberU64(), block.NumberU64())
+		erc20Transfers, err := i.fetcher.GetERC20TransfersInRange(opCtx, block.NumberU64(), block.NumberU64())
 		if err != nil {
 			log.Printf("Failed to get ERC20 transfers for block %d: %v", num, err)
 			return err
@@ -67,7 +77,7 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) error {
 			// Note: CreateERC20Transfer uses ON CONFLICT DO NOTHING.
 			// If it exists, we get pgx.ErrNoRows (handled by store.SaveERC20Transfer).
 			// This is idempotent.
-			err = i.store.SaveERC20Transfer(ctx, sqlc.CreateERC20TransferParams{
+			err = i.store.SaveERC20Transfer(opCtx, sqlc.CreateERC20TransferParams{
 				TxHash:      transferLog.TxHash.String(),
 				LogIndex:    int32(transferLog.Index),
 				BlockNumber: int64(num),
@@ -86,7 +96,7 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) error {
 		// This step is conceptually mostly for tracking or if we had downstream jobs.
 		// Since we process sequentially here, the "SaveBlock" already essentially checkpoints us.
 		// However, updating `processed_at` allows us to differentiate "inserted but crashed" vs "fully done".
-		err = i.store.MarkBlockProcessed(ctx, num)
+		err = i.store.MarkBlockProcessed(opCtx, num)
 		if err != nil {
 			log.Printf("Failed to mark block %d as processed: %v", num, err)
 			return err
