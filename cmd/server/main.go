@@ -88,12 +88,12 @@ func main() {
 	defer stop()
 
 	startTime := time.Now()
-	if err := idx.Run(ctx, start, end); err != nil {
+	lastProcessedBlock, err := idx.Run(ctx, start, end)
+	if err != nil {
 		log.Printf("Indexer stopped with error: %v", err)
-	} else {
-		log.Println("Indexer finished successfully")
-		log.Printf("Total Blocks Indexed: %d/%s", end-start+1, time.Since(startTime))
 	}
+	log.Printf("Total Blocks Indexed: %d/%s", lastProcessedBlock-start+1, time.Since(startTime))
+
 }
 
 func getStartBlock() (uint64, error) {

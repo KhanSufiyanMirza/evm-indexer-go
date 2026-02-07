@@ -2,6 +2,7 @@ package indexer
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -23,15 +24,17 @@ func NewIndexer(fetcher gateway.BlockFetcher, store *storage.Store) *Indexer {
 	}
 }
 
-func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) error {
+func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, error) {
 	// Use a separate context for operations to ensure the current block finishes processing
 	// even if the shutdown signal is received mid-processing.
 	opCtx := context.Background()
 
+	lastProcessedBlock := startBlock - 1
+
 	for num := startBlock; num <= endBlock; num++ {
 		select {
 		case <-ctx.Done():
-			return nil
+			return lastProcessedBlock, nil
 		default:
 		}
 
@@ -39,7 +42,7 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) error {
 		block, err := i.fetcher.Fetch(opCtx, uint64(num))
 		if err != nil {
 			log.Printf("Failed to fetch block %d: %v", num, err)
-			return err
+			return lastProcessedBlock, fmt.Errorf("failed to fetch block %d: %v", num, err)
 		}
 
 		// 2. Insert Block
@@ -54,14 +57,14 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) error {
 		})
 		if err != nil {
 			log.Printf("Failed to save block %d: %v", num, err)
-			return err
+			return lastProcessedBlock, fmt.Errorf("failed to save block %d: %v", num, err)
 		}
 
 		// 3. Insert ERC20 Transfers
 		erc20Transfers, err := i.fetcher.GetERC20TransfersInRange(opCtx, block.NumberU64(), block.NumberU64())
 		if err != nil {
 			log.Printf("Failed to get ERC20 transfers for block %d: %v", num, err)
-			return err
+			return lastProcessedBlock, fmt.Errorf("failed to get ERC20 transfers for block %d: %v", num, err)
 		}
 		count := 0
 		for _, transferLog := range erc20Transfers {
@@ -87,7 +90,7 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) error {
 			})
 			if err != nil {
 				log.Printf("Failed to save ERC20 Transfer for block %d: %v", num, err)
-				return err
+				return lastProcessedBlock, fmt.Errorf("failed to save ERC20 Transfer for block %d: %v", num, err)
 			}
 		}
 		log.Printf("Successfully indexed ERC20 Transfers for block %d and count: %d \n", num, count)
@@ -99,11 +102,12 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) error {
 		err = i.store.MarkBlockProcessed(opCtx, num)
 		if err != nil {
 			log.Printf("Failed to mark block %d as processed: %v", num, err)
-			return err
+			return lastProcessedBlock, fmt.Errorf("failed to mark block %d as processed: %v", num, err)
 		}
 
+		lastProcessedBlock = num
 		log.Printf("Successfully indexed block %d \n", num)
 		log.Println("--------------------------------")
 	}
-	return nil
+	return lastProcessedBlock, nil
 }
