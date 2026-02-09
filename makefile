@@ -25,7 +25,7 @@ build:
 	go build -o bin/$(BINARY_NAME) cmd/server/main.go
 
 run:
-	export $(cat .env.local | xargs) && go run cmd/server/main.go
+	export $$(cat .env.local | xargs) && go run cmd/server/main.go
 
 up:
 	docker-compose up -d
