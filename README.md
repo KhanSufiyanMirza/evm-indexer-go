@@ -98,3 +98,22 @@ The project includes a `makefile` to simplify common development tasks. Run `mak
 - Process crash mid-block (restart from last processed block)
 - Duplicate block processing
 - Partial log insert
+### What this indexer does?
+- Fetches blocks from the Ethereum node
+- Parses logs from the blocks
+- Stores the ERC20 Transfer logs in the database
+### How resume works?
+- Fetches the last processed block from the database
+- Starts from the next block
+- Processes all blocks
+### How Idempotency is achieved?
+- ON CONFLICT DO NOTHING (for save block and save log)
+### What failures are handled?
+- RPC timeout
+- Process crash mid-block (restart from last processed block)
+- Duplicate block processing
+- Partial log insert
+- DB Errors (except constraint violation errors)
+- Network errors
+### What Failures are intentionally not handled yet?
+- re-orgs
