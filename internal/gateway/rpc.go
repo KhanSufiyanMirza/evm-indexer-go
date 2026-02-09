@@ -177,6 +177,8 @@ func isRetryableError(err error) bool {
 		return true
 	case strings.Contains(msg, "no response"):
 		return true
+	case strings.Contains(msg, "connection reset by peer"):
+		return true
 	default:
 		return false
 	}
