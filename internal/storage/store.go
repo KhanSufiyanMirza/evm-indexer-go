@@ -84,6 +84,11 @@ func (s *Store) GetLatestBlockNumber(ctx context.Context) (int64, error) {
 		return s.Store.GetLatestBlockNumber(ctx)
 	})
 }
+func (s *Store) GetBlockByNumber(ctx context.Context, blockNumber int64) (sqlc.GetBlockByNumberRow, error) {
+	return retry(ctx, func() (sqlc.GetBlockByNumberRow, error) {
+		return s.Store.GetBlockByNumber(ctx, blockNumber)
+	})
+}
 
 func (s *Store) GetLatestProcessedBlockNumber(ctx context.Context) (int64, error) {
 	return retry(ctx, func() (int64, error) {
