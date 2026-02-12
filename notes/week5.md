@@ -28,3 +28,6 @@ Does Not Guarantee:
  - PoS Ethereum: 1-2 blocks re-orgs happen daily.
  - 3+ blocks re-orgs are rare (a few per month).
  - 5 blocks almost always due to client bugs or MEV attacks.
+
+ ## What does it mean if this comparison (Block N.ParentHash != Block N-1.Hash) fails?
+ It means there is a reorg at block N.

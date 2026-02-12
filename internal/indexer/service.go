@@ -37,6 +37,11 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 			return lastProcessedBlock, nil
 		default:
 		}
+		previousBlock, err := i.store.GetBlockByNumber(opCtx, num-1)
+		if err != nil {
+			log.Printf("Failed to get previous block %d: %v", num-1, err)
+			return lastProcessedBlock, fmt.Errorf("failed to get previous block %d: %v", num-1, err)
+		}
 
 		// 1. Fetch
 		block, err := i.fetcher.Fetch(opCtx, uint64(num))
@@ -45,6 +50,10 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 			return lastProcessedBlock, fmt.Errorf("failed to fetch block %d: %v", num, err)
 		}
 
+		if previousBlock.Hash != block.ParentHash().String() {
+			log.Printf("Reorg detected at block %d", num)
+			return lastProcessedBlock, fmt.Errorf("reorg detected at block %d", num)
+		}
 		// 2. Insert Block
 		// Note: CreateBlock uses ON CONFLICT DO NOTHING.
 		// If it exists, we get pgx.ErrNoRows (handled by store.SaveBlock).
