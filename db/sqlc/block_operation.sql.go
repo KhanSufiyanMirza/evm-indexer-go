@@ -82,6 +82,16 @@ func (q *Queries) DeleteBlockByHash(ctx context.Context, hash string) error {
 	return err
 }
 
+const deleteBlocksFromHeight = `-- name: DeleteBlocksFromHeight :exec
+DELETE FROM blocks
+WHERE number > $1
+`
+
+func (q *Queries) DeleteBlocksFromHeight(ctx context.Context, number int64) error {
+	_, err := q.db.Exec(ctx, deleteBlocksFromHeight, number)
+	return err
+}
+
 const getBlockByHash = `-- name: GetBlockByHash :one
 SELECT id, hash, number, parent_hash, timestamp
 FROM blocks

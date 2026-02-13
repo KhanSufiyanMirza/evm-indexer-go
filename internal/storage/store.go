@@ -113,3 +113,29 @@ func isConstraintViolation(err error) bool {
 	}
 	return false
 }
+
+func (s *Store) DeleteBlockRange(ctx context.Context, fromBlock int64) error {
+	// We delete in reverse order of dependencies:
+	// 1. ERC20 Transfers (refer to blocks)
+	// 2. Blocks
+	// Note: If you have more tables, add them here.
+
+	// 1. Delete ERC20 Transfers
+	_, err := retry(ctx, func() (bool, error) {
+		err := s.Store.ExecTx(ctx, func(querier *sqlc.Queries) error {
+			err := querier.DeleteERC20TransfersFromHeight(ctx, fromBlock)
+			if err != nil {
+				return err
+			}
+
+			err = querier.DeleteBlocksFromHeight(ctx, fromBlock)
+			return err
+		})
+		if err != nil {
+			return false, err
+		}
+		return true, nil
+	})
+
+	return err
+}

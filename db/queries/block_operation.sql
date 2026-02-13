@@ -53,3 +53,7 @@ SELECT MAX(number)::Bigint FROM blocks WHERE processed_at IS NOT NULL;
 UPDATE blocks
 SET processed_at = NOW()
 WHERE number = $1 AND processed_at IS NULL;
+
+-- name: DeleteBlocksFromHeight :exec
+DELETE FROM blocks
+WHERE number > $1;

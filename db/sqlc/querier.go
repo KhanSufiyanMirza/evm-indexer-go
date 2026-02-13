@@ -15,6 +15,8 @@ type Querier interface {
 	CreateERC20Transfer(ctx context.Context, arg CreateERC20TransferParams) (CreateERC20TransferRow, error)
 	DeleteBlock(ctx context.Context, id int32) error
 	DeleteBlockByHash(ctx context.Context, hash string) error
+	DeleteBlocksFromHeight(ctx context.Context, number int64) error
+	DeleteERC20TransfersFromHeight(ctx context.Context, blockNumber int64) error
 	GetBlockByHash(ctx context.Context, hash string) (GetBlockByHashRow, error)
 	GetBlockByID(ctx context.Context, id int32) (GetBlockByIDRow, error)
 	GetBlockByNumber(ctx context.Context, number int64) (GetBlockByNumberRow, error)

@@ -51,8 +51,28 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 		}
 
 		if previousBlock.Hash != block.ParentHash().String() {
-			log.Printf("Reorg detected at block %d", num)
-			return lastProcessedBlock, fmt.Errorf("reorg detected at block %d", num)
+			log.Printf("Reorg detected at block %d. Previous DB block hash %s != New block parent hash %s", num, previousBlock.Hash, block.ParentHash().String())
+
+			// 1. Find Common Ancestor
+			ancestorBlockNumber, err := i.findCommonAncestor(opCtx, num-1)
+			if err != nil {
+				return lastProcessedBlock, fmt.Errorf("failed to find common ancestor: %v", err)
+			}
+			log.Printf("Found common ancestor at block %d", ancestorBlockNumber)
+
+			// 2. Rollback
+			err = i.store.DeleteBlockRange(opCtx, ancestorBlockNumber)
+			if err != nil {
+				return lastProcessedBlock, fmt.Errorf("failed to rollback from block %d: %v", ancestorBlockNumber, err)
+			}
+			log.Printf("Rolled back data > block %d", ancestorBlockNumber)
+
+			// 3. Resume
+			// Set loop variable `num` to ancestorBlockNumber.
+			// The loop increment will make it ancestorBlockNumber + 1 for the next iteration.
+			lastProcessedBlock = ancestorBlockNumber
+			num = ancestorBlockNumber
+			continue
 		}
 		// 2. Insert Block
 		// Note: CreateBlock uses ON CONFLICT DO NOTHING.
@@ -119,4 +139,53 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 		log.Println("--------------------------------")
 	}
 	return lastProcessedBlock, nil
+}
+
+// findCommonAncestor steps back from startBlock verifying checks against canonical chain
+// Returns the block number of the first block that matches (Common Ancestor).
+func (i *Indexer) findCommonAncestor(ctx context.Context, startBlock int64) (int64, error) {
+	// We start from the block we *thought* was the tip (startBlock) and go backwards.
+	// Since we called this, we know startBlock is likely invalid (or at least its successor didn't match it).
+	// But it's safer to check startBlock again against canonical to be sure, and then descend.
+
+	// Safety limit to prevent infinite loops (though usually 0 is the floor)
+	const maxReorgDepth = 1000
+
+	current := startBlock
+	depth := 0
+
+	for current >= 0 {
+		if depth > maxReorgDepth {
+			return 0, fmt.Errorf("reorg depth exceeded safe limit of %d blocks", maxReorgDepth)
+		}
+
+		// 1. Get canonical block
+		canonicalBlock, err := i.fetcher.Fetch(ctx, uint64(current))
+		if err != nil {
+			return 0, fmt.Errorf("failed to fetch canonical block %d: %v", current, err)
+		}
+
+		// 2. Get local block
+		dbBlock, err := i.store.GetBlockByNumber(ctx, current)
+		if err != nil {
+			// If we don't have this block, it can't be an ancestor?
+			// Or maybe we haven't indexed it yet?
+			// But we are walking BACK from a block we presumably have.
+			// If we fail to get it, it's a critical error.
+			return 0, fmt.Errorf("failed to get db block %d: %v", current, err)
+		}
+
+		// 3. Compare
+		if canonicalBlock.Hash().String() == dbBlock.Hash {
+			// Match found! This is the common ancestor.
+			return current, nil
+		}
+
+		// Mismatch, keep going back
+		log.Printf("Block %d mismatch: canonical %s != db %s", current, canonicalBlock.Hash().String(), dbBlock.Hash)
+		current--
+		depth++
+	}
+
+	return 0, fmt.Errorf("no common ancestor found down to block 0")
 }

@@ -19,3 +19,7 @@ LIMIT $2 OFFSET $3;
 -- name: CountERC20Transfers :one
 SELECT COUNT(*) as count
 FROM erc20_transfers;
+
+-- name: DeleteERC20TransfersFromHeight :exec
+DELETE FROM erc20_transfers
+WHERE block_number > $1;

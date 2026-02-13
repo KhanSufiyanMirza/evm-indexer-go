@@ -69,6 +69,16 @@ func (q *Queries) CreateERC20Transfer(ctx context.Context, arg CreateERC20Transf
 	return i, err
 }
 
+const deleteERC20TransfersFromHeight = `-- name: DeleteERC20TransfersFromHeight :exec
+DELETE FROM erc20_transfers
+WHERE block_number > $1
+`
+
+func (q *Queries) DeleteERC20TransfersFromHeight(ctx context.Context, blockNumber int64) error {
+	_, err := q.db.Exec(ctx, deleteERC20TransfersFromHeight, blockNumber)
+	return err
+}
+
 const getERC20Transfer = `-- name: GetERC20Transfer :one
 SELECT tx_hash, log_index, from_address, to_address, value, block_number
 FROM erc20_transfers
