@@ -115,5 +115,5 @@ The project includes a `makefile` to simplify common development tasks. Run `mak
 - Partial log insert
 - DB Errors (except constraint violation errors)
 - Network errors
-### What Failures are intentionally not handled yet?
 - re-orgs
+

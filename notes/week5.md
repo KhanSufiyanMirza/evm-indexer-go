@@ -31,3 +31,8 @@ Does Not Guarantee:
 
  ## What does it mean if this comparison (Block N.ParentHash != Block N-1.Hash) fails?
  It means there is a reorg at block N.
+
+ ## Why shallow re-orgs are still dangerous for money flows?
+ - You might process fake transfers and You corrupt balances
+ - You might process same transfer twice and double count it
+ 
