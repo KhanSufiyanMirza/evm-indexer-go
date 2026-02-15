@@ -2,7 +2,6 @@ package gateway
 
 import (
 	"context"
-	"errors"
 	"log"
 	"math/big"
 	"strings"
@@ -14,7 +13,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/rpc"
 )
 
 func init() {
@@ -38,13 +36,13 @@ type blockFetcher struct {
 // BlockFetcher is a function that fetches a block by its number.
 // type BlockFetcher func(ctx context.Context, blockNumber uint64) (*types.Block, error)
 
-var retryableCodes = map[int]bool{
-	-32001: true, // resource not found (node lag)
-	-32002: true, // resource unavailable
-	-32005: true, // rate limit
-	-32603: true, // internal error
-	-32016: true, // over rate limit
-}
+// var retryableCodes = map[int]bool{
+// 	-32001: true, // resource not found (node lag)
+// 	-32002: true, // resource unavailable
+// 	-32005: true, // rate limit
+// 	-32603: true, // internal error
+// 	-32016: true, // over rate limit
+// }
 
 // NewBlockFetcher returns a BlockFetcher that fetches blocks using the provided ethclient.Client.
 func NewBlockFetcher(client *ethclient.Client) *blockFetcher {
@@ -184,16 +182,16 @@ func isRetryableError(err error) bool {
 	}
 }
 
-func isRetryableRPCError(err error) bool {
-	// fixme: as we know we're using go-ethereum ethclient, we can't use rpc.Error type directly becasue it's json-rpc error
-	// so we have to find a way to check if the error is retryable
-	var rpcErr rpc.Error // go-ethereum rpc error
-	if errors.As(err, &rpcErr) {
-		return retryableCodes[rpcErr.ErrorCode()]
-	}
-	// Fallback to string checking
-	if isRetryableError(err) {
-		return true
-	}
-	return false
-}
+// func isRetryableRPCError(err error) bool {
+// 	// fixme: as we know we're using go-ethereum ethclient, we can't use rpc.Error type directly becasue it's json-rpc error
+// 	// so we have to find a way to check if the error is retryable
+// 	var rpcErr rpc.Error // go-ethereum rpc error
+// 	if errors.As(err, &rpcErr) {
+// 		return retryableCodes[rpcErr.ErrorCode()]
+// 	}
+// 	// Fallback to string checking
+// 	if isRetryableError(err) {
+// 		return true
+// 	}
+// 	return false
+// }
