@@ -44,10 +44,10 @@ SELECT COUNT(*) as count
 FROM blocks;
 
 -- name: GetLatestBlockNumber :one
-SELECT MAX(number)::Bigint FROM blocks;
+SELECT MAX(number)::Bigint FROM blocks HAVING MAX(number) IS NOT NULL;
 
 -- name: GetLatestProcessedBlockNumber :one
-SELECT MAX(number)::Bigint FROM blocks WHERE processed_at IS NOT NULL;
+SELECT MAX(number)::Bigint FROM blocks WHERE processed_at IS NOT NULL HAVING MAX(number) IS NOT NULL;
 
 -- name: MarkBlockProcessed :exec
 UPDATE blocks
@@ -56,4 +56,9 @@ WHERE number = $1 AND processed_at IS NULL;
 
 -- name: DeleteBlocksFromHeight :exec
 DELETE FROM blocks
+WHERE number > $1;
+
+-- name: MarkBlockReorgedRange :exec
+UPDATE blocks
+SET is_canonical = FALSE, reorg_detected_at = NOW()
 WHERE number > $1;

@@ -162,3 +162,14 @@ func (q *Queries) ListERC20TransfersByTxHash(ctx context.Context, arg ListERC20T
 	}
 	return items, nil
 }
+
+const markERC20TransfersReorgedRange = `-- name: MarkERC20TransfersReorgedRange :exec
+UPDATE erc20_transfers
+SET is_canonical = FALSE, reorg_detected_at = NOW()
+WHERE block_number > $1
+`
+
+func (q *Queries) MarkERC20TransfersReorgedRange(ctx context.Context, blockNumber int64) error {
+	_, err := q.db.Exec(ctx, markERC20TransfersReorgedRange, blockNumber)
+	return err
+}

@@ -2,6 +2,7 @@ package indexer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -38,9 +39,14 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 		default:
 		}
 		previousBlock, err := i.store.GetBlockByNumber(opCtx, num-1)
+		isFirstRun := false
 		if err != nil {
-			log.Printf("Failed to get previous block %d: %v", num-1, err)
-			return lastProcessedBlock, fmt.Errorf("failed to get previous block %d: %v", num-1, err)
+			if errors.Is(err, storage.ErrBlockNotFound) {
+				isFirstRun = true
+			} else {
+				log.Printf("Failed to get previous block %d: %v", num-1, err)
+				return lastProcessedBlock, fmt.Errorf("failed to get previous block %d: %v", num-1, err)
+			}
 		}
 
 		// 1. Fetch
@@ -50,7 +56,7 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 			return lastProcessedBlock, fmt.Errorf("failed to fetch block %d: %v", num, err)
 		}
 
-		if previousBlock.Hash != block.ParentHash().String() {
+		if !isFirstRun && previousBlock.Hash != block.ParentHash().String() {
 			log.Printf("Reorg detected at block %d. Previous DB block hash %s != New block parent hash %s", num, previousBlock.Hash, block.ParentHash().String())
 
 			// 1. Find Common Ancestor
@@ -61,7 +67,7 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 			log.Printf("Found common ancestor at block %d", ancestorBlockNumber)
 
 			// 2. Rollback
-			err = i.store.DeleteBlockRange(opCtx, ancestorBlockNumber)
+			err = i.store.MarkBlockReorgedRange(opCtx, ancestorBlockNumber)
 			if err != nil {
 				return lastProcessedBlock, fmt.Errorf("failed to rollback from block %d: %v", ancestorBlockNumber, err)
 			}

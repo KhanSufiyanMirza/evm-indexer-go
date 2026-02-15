@@ -21,6 +21,10 @@ func NewStore(store sqlc.Store) *Store {
 	}
 }
 
+var (
+	ErrBlockNotFound = errors.New("block not found")
+)
+
 // SaveBlock attempts to insert a block.
 // If the block already exists (pgx.ErrNoRows due to ON CONFLICT DO NOTHING),
 // it returns nil (treating it as success - Idempotency).
@@ -81,18 +85,30 @@ func (s *Store) MarkBlockProcessed(ctx context.Context, blockNumber int64) error
 
 func (s *Store) GetLatestBlockNumber(ctx context.Context) (int64, error) {
 	return retry(ctx, func() (int64, error) {
-		return s.Store.GetLatestBlockNumber(ctx)
+		blockNo, err := s.Store.GetLatestBlockNumber(ctx)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, backoff.Permanent(ErrBlockNotFound)
+		}
+		return blockNo, err
 	})
 }
 func (s *Store) GetBlockByNumber(ctx context.Context, blockNumber int64) (sqlc.GetBlockByNumberRow, error) {
 	return retry(ctx, func() (sqlc.GetBlockByNumberRow, error) {
-		return s.Store.GetBlockByNumber(ctx, blockNumber)
+		blockNo, err := s.Store.GetBlockByNumber(ctx, blockNumber)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return sqlc.GetBlockByNumberRow{}, backoff.Permanent(ErrBlockNotFound)
+		}
+		return blockNo, err
 	})
 }
 
 func (s *Store) GetLatestProcessedBlockNumber(ctx context.Context) (int64, error) {
 	return retry(ctx, func() (int64, error) {
-		return s.Store.GetLatestProcessedBlockNumber(ctx)
+		blockNo, err := s.Store.GetLatestProcessedBlockNumber(ctx)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, backoff.Permanent(ErrBlockNotFound)
+		}
+		return blockNo, err
 	})
 }
 
@@ -129,6 +145,31 @@ func (s *Store) DeleteBlockRange(ctx context.Context, fromBlock int64) error {
 			}
 
 			err = querier.DeleteBlocksFromHeight(ctx, fromBlock)
+			return err
+		})
+		if err != nil {
+			return false, err
+		}
+		return true, nil
+	})
+
+	return err
+}
+func (s *Store) MarkBlockReorgedRange(ctx context.Context, fromBlock int64) error {
+	// We mark in reverse order of dependencies:
+	// 1. ERC20 Transfers (refer to blocks)
+	// 2. Blocks
+	// Note: If you have more tables, add them here.
+
+	// 1. Mark ERC20 Transfers
+	_, err := retry(ctx, func() (bool, error) {
+		err := s.Store.ExecTx(ctx, func(querier *sqlc.Queries) error {
+			err := querier.MarkBlockReorgedRange(ctx, fromBlock)
+			if err != nil {
+				return err
+			}
+
+			err = querier.MarkERC20TransfersReorgedRange(ctx, fromBlock)
 			return err
 		})
 		if err != nil {

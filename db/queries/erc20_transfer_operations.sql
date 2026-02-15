@@ -23,3 +23,8 @@ FROM erc20_transfers;
 -- name: DeleteERC20TransfersFromHeight :exec
 DELETE FROM erc20_transfers
 WHERE block_number > $1;
+
+-- name: MarkERC20TransfersReorgedRange :exec
+UPDATE erc20_transfers
+SET is_canonical = FALSE, reorg_detected_at = NOW()
+WHERE block_number > $1;

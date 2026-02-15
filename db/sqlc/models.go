@@ -11,20 +11,24 @@ import (
 )
 
 type Block struct {
-	ID          int32            `json:"id"`
-	Hash        string           `json:"hash"`
-	Number      int64            `json:"number"`
-	ParentHash  string           `json:"parentHash"`
-	Timestamp   time.Time        `json:"timestamp"`
-	ProcessedAt pgtype.Timestamp `json:"processedAt"`
-	CreatedAt   pgtype.Timestamp `json:"createdAt"`
+	ID              int32            `json:"id"`
+	Hash            string           `json:"hash"`
+	Number          int64            `json:"number"`
+	ParentHash      string           `json:"parentHash"`
+	Timestamp       time.Time        `json:"timestamp"`
+	ProcessedAt     pgtype.Timestamp `json:"processedAt"`
+	CreatedAt       pgtype.Timestamp `json:"createdAt"`
+	IsCanonical     pgtype.Bool      `json:"isCanonical"`
+	ReorgDetectedAt pgtype.Timestamp `json:"reorgDetectedAt"`
 }
 
 type Erc20Transfer struct {
-	TxHash      string         `json:"txHash"`
-	LogIndex    int32          `json:"logIndex"`
-	BlockNumber int64          `json:"blockNumber"`
-	FromAddress string         `json:"fromAddress"`
-	ToAddress   string         `json:"toAddress"`
-	Value       pgtype.Numeric `json:"value"`
+	TxHash          string           `json:"txHash"`
+	LogIndex        int32            `json:"logIndex"`
+	BlockNumber     int64            `json:"blockNumber"`
+	FromAddress     string           `json:"fromAddress"`
+	ToAddress       string           `json:"toAddress"`
+	Value           pgtype.Numeric   `json:"value"`
+	IsCanonical     pgtype.Bool      `json:"isCanonical"`
+	ReorgDetectedAt pgtype.Timestamp `json:"reorgDetectedAt"`
 }

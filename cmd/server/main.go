@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -68,14 +69,16 @@ func main() {
 	log.Printf("Latest onchain Block No: %d \n", latestBlockNumberOnchain)
 
 	processedLastBlock, err := storageStore.GetLatestProcessedBlockNumber(context.Background())
-	if err != nil {
+	if err != nil && !errors.Is(err, storage.ErrBlockNotFound) {
+		log.Fatalf("Failed to get latest processed block number: %v", err)
+	}
+
+	if processedLastBlock == 0 {
 		startBlock, err := getStartBlock()
 		if err != nil {
-			log.Println("No previous state and no START_BLOCK env, defaulting to latest-10")
-			processedLastBlock = int64(latestBlockNumberOnchain) - 10
-		} else {
-			processedLastBlock = int64(startBlock) - 1
+			log.Fatalf("Failed to get start block: %v", err)
 		}
+		processedLastBlock = int64(startBlock) - 1
 	}
 
 	start := processedLastBlock + 1
