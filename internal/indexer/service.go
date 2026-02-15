@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/KhanSufiyanMirza/evm-indexer-go/db/sqlc"
@@ -44,7 +44,7 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 			if errors.Is(err, storage.ErrBlockNotFound) {
 				isFirstRun = true
 			} else {
-				log.Printf("Failed to get previous block %d: %v", num-1, err)
+				slog.Error("Failed to get previous block", "block", num-1, "error", err)
 				return lastProcessedBlock, fmt.Errorf("failed to get previous block %d: %w", num-1, err)
 			}
 		}
@@ -52,26 +52,26 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 		// 1. Fetch
 		block, err := i.fetcher.Fetch(opCtx, uint64(num))
 		if err != nil {
-			log.Printf("Failed to fetch block %d: %v", num, err)
+			slog.Error("Failed to fetch block", "block", num, "error", err)
 			return lastProcessedBlock, fmt.Errorf("failed to fetch block %d: %w", num, err)
 		}
 
 		if !isFirstRun && previousBlock.Hash != block.ParentHash().String() {
-			log.Printf("Reorg detected at block %d. Previous DB block hash %s != New block parent hash %s", num, previousBlock.Hash, block.ParentHash().String())
+			slog.Warn("Reorg detected", "block", num, "dbHash", previousBlock.Hash, "parentHash", block.ParentHash().String())
 
 			// 1. Find Common Ancestor
 			ancestorBlockNumber, err := i.findCommonAncestor(opCtx, num-1)
 			if err != nil {
 				return lastProcessedBlock, fmt.Errorf("failed to find common ancestor: %w", err)
 			}
-			log.Printf("Found common ancestor at block %d", ancestorBlockNumber)
+			slog.Info("Found common ancestor", "block", ancestorBlockNumber)
 
 			// 2. Rollback
 			err = i.store.MarkBlockReorgedRange(opCtx, ancestorBlockNumber)
 			if err != nil {
 				return lastProcessedBlock, fmt.Errorf("failed to rollback from block %d: %w", ancestorBlockNumber, err)
 			}
-			log.Printf("Rolled back data > block %d", ancestorBlockNumber)
+			slog.Info("Rolled back data above block", "block", ancestorBlockNumber)
 
 			// 3. Resume
 			// Set loop variable `num` to ancestorBlockNumber.
@@ -91,14 +91,14 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 			Timestamp:  time.Unix(int64(block.Time()), 0),
 		})
 		if err != nil {
-			log.Printf("Failed to save block %d: %v", num, err)
+			slog.Error("Failed to save block", "block", num, "error", err)
 			return lastProcessedBlock, fmt.Errorf("failed to save block %d: %w", num, err)
 		}
 
 		// 3. Insert ERC20 Transfers (batch)
 		erc20Transfers, err := i.fetcher.GetERC20TransfersInRange(opCtx, block.NumberU64(), block.NumberU64())
 		if err != nil {
-			log.Printf("Failed to get ERC20 transfers for block %d: %v", num, err)
+			slog.Error("Failed to get ERC20 transfers", "block", num, "error", err)
 			return lastProcessedBlock, fmt.Errorf("failed to get ERC20 transfers for block %d: %w", num, err)
 		}
 		batchParams := make([]sqlc.BatchCreateERC20TransferParams, 0, len(erc20Transfers))
@@ -122,10 +122,10 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 		// Batch insert uses ON CONFLICT DO NOTHING for idempotency.
 		err = i.store.SaveERC20TransferBatch(opCtx, batchParams)
 		if err != nil {
-			log.Printf("Failed to save ERC20 Transfers for block %d: %v", num, err)
+			slog.Error("Failed to save ERC20 transfers", "block", num, "error", err)
 			return lastProcessedBlock, fmt.Errorf("failed to save ERC20 Transfers for block %d: %w", num, err)
 		}
-		log.Printf("Successfully indexed ERC20 Transfers for block %d and count: %d \n", num, len(batchParams))
+		slog.Info("Indexed ERC20 transfers", "block", num, "count", len(batchParams))
 
 		// 3. Mark Processed (Guard)
 		// This step is conceptually mostly for tracking or if we had downstream jobs.
@@ -133,13 +133,12 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 		// However, updating `processed_at` allows us to differentiate "inserted but crashed" vs "fully done".
 		err = i.store.MarkBlockProcessed(opCtx, num)
 		if err != nil {
-			log.Printf("Failed to mark block %d as processed: %v", num, err)
+			slog.Error("Failed to mark block as processed", "block", num, "error", err)
 			return lastProcessedBlock, fmt.Errorf("failed to mark block %d as processed: %w", num, err)
 		}
 
 		lastProcessedBlock = num
-		log.Printf("Successfully indexed block %d \n", num)
-		log.Println("--------------------------------")
+		slog.Info("Successfully indexed block", "block", num)
 	}
 	return lastProcessedBlock, nil
 }
@@ -185,7 +184,7 @@ func (i *Indexer) findCommonAncestor(ctx context.Context, startBlock int64) (int
 		}
 
 		// Mismatch, keep going back
-		log.Printf("Block %d mismatch: canonical %s != db %s", current, canonicalBlock.Hash().String(), dbBlock.Hash)
+		slog.Warn("Block hash mismatch", "block", current, "canonical", canonicalBlock.Hash().String(), "db", dbBlock.Hash)
 		current--
 		depth++
 	}

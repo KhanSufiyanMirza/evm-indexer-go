@@ -2,7 +2,7 @@ package gateway
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"math/big"
 	"strings"
 	"time"
@@ -16,7 +16,6 @@ import (
 )
 
 func init() {
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	erc20TransferEventHash = crypto.Keccak256Hash([]byte("Transfer(address,address,uint256)"))
 }
 
@@ -52,15 +51,15 @@ func NewBlockFetcher(client *ethclient.Client) BlockFetcher {
 func (bf *blockFetcher) Fetch(ctx context.Context, blockNumber uint64) (*types.Block, error) {
 	st := time.Now()
 	defer func() {
-		log.Printf("Time taken to fetch block %d : %s", blockNumber, time.Since(st))
+		slog.Info("Block fetched", "block", blockNumber, "duration", time.Since(st))
 	}()
 	count := 1
 	block, err := backoff.Retry(ctx, func() (*types.Block, error) {
-		log.Println("Fetching block number :", blockNumber, " attempt:", count)
+		slog.Info("Fetching block", "block", blockNumber, "attempt", count)
 		block, err := bf.client.BlockByNumber(ctx, big.NewInt(int64(blockNumber)))
 
 		if err != nil && !isRetryableError(err) {
-			log.Printf("Non-retryable RPC error encountered, Message: %s", err.Error())
+			slog.Error("Non-retryable RPC error", "error", err)
 
 			return nil, backoff.Permanent(err)
 		}
@@ -74,15 +73,15 @@ func (bf *blockFetcher) Fetch(ctx context.Context, blockNumber uint64) (*types.B
 func (bf *blockFetcher) GetBlockNumberWithRetry(ctx context.Context) (uint64, error) {
 	st := time.Now()
 	defer func() {
-		log.Printf("Time taken to get block number : %s", time.Since(st))
+		slog.Info("Block number fetched", "duration", time.Since(st))
 	}()
 	count := 1
 	blockNumber, err := backoff.Retry(ctx, func() (uint64, error) {
-		log.Println("Fetching block number attempt:", count)
+		slog.Info("Fetching block number", "attempt", count)
 		blockNumber, err := bf.client.BlockNumber(ctx)
 
 		if err != nil && !isRetryableError(err) {
-			log.Printf("Non-retryable RPC error encountered, Message: %s", err.Error())
+			slog.Error("Non-retryable RPC error", "error", err)
 			return 0, backoff.Permanent(err)
 		}
 		count++
@@ -96,11 +95,11 @@ func (bf *blockFetcher) GetBlockNumberWithRetry(ctx context.Context) (uint64, er
 func (bf *blockFetcher) GetLogsInRange(ctx context.Context, startBlock, endBlock uint64) ([]types.Log, error) {
 	st := time.Now()
 	defer func() {
-		log.Printf("Time taken to get logs from block %d to %d : %s", startBlock, endBlock, time.Since(st))
+		slog.Info("Logs fetched", "startBlock", startBlock, "endBlock", endBlock, "duration", time.Since(st))
 	}()
 	count := 1
 	logs, err := backoff.Retry(ctx, func() ([]types.Log, error) {
-		log.Printf("Fetching logs from block %d to %d attempt: %d", startBlock, endBlock, count)
+		slog.Info("Fetching logs", "startBlock", startBlock, "endBlock", endBlock, "attempt", count)
 		query := ethereum.FilterQuery{
 			FromBlock: big.NewInt(int64(startBlock)),
 			ToBlock:   big.NewInt(int64(endBlock)),
@@ -108,7 +107,7 @@ func (bf *blockFetcher) GetLogsInRange(ctx context.Context, startBlock, endBlock
 		logs, err := bf.client.FilterLogs(ctx, query)
 
 		if err != nil && !isRetryableError(err) {
-			log.Printf("Non-retryable RPC error encountered while fetching logs, Message: %s", err.Error())
+			slog.Error("Non-retryable RPC error fetching logs", "error", err)
 			return nil, backoff.Permanent(err)
 		}
 		count++
@@ -121,11 +120,11 @@ func (bf *blockFetcher) GetLogsInRange(ctx context.Context, startBlock, endBlock
 func (bf *blockFetcher) GetERC20TransfersInRange(ctx context.Context, startBlock, endBlock uint64) ([]types.Log, error) {
 	st := time.Now()
 	defer func() {
-		log.Printf("Time taken to get ERC20 Transfer logs from block %d to %d : %s", startBlock, endBlock, time.Since(st))
+		slog.Info("ERC20 transfer logs fetched", "startBlock", startBlock, "endBlock", endBlock, "duration", time.Since(st))
 	}()
 	count := 1
 	logs, err := backoff.Retry(ctx, func() ([]types.Log, error) {
-		log.Printf("Fetching ERC20 Transfer logs from block %d to %d attempt: %d", startBlock, endBlock, count)
+		slog.Info("Fetching ERC20 transfer logs", "startBlock", startBlock, "endBlock", endBlock, "attempt", count)
 		query := ethereum.FilterQuery{
 			FromBlock: big.NewInt(int64(startBlock)),
 			ToBlock:   big.NewInt(int64(endBlock)),
@@ -134,7 +133,7 @@ func (bf *blockFetcher) GetERC20TransfersInRange(ctx context.Context, startBlock
 		logs, err := bf.client.FilterLogs(ctx, query)
 
 		if err != nil && !isRetryableError(err) {
-			log.Printf("Non-retryable RPC error encountered while fetching ERC20 Transfer logs, Message: %s", err.Error())
+			slog.Error("Non-retryable RPC error fetching ERC20 transfer logs", "error", err)
 			return nil, backoff.Permanent(err)
 		}
 		count++

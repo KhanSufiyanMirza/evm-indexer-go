@@ -3,7 +3,7 @@ package storage
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 
 	"github.com/KhanSufiyanMirza/evm-indexer-go/db/sqlc"
 	"github.com/cenkalti/backoff/v5"
@@ -37,7 +37,7 @@ func (s *Store) SaveBlock(ctx context.Context, params sqlc.CreateBlockParams) er
 			// count++
 			// log.Printf("Error inserting block %d, attempt %d: %v", params.Number, count, err)
 			if errors.Is(err, pgx.ErrNoRows) {
-				log.Printf("Block %d already exists (idempotent skip)", params.Number)
+				slog.Debug("Block already exists (idempotent skip)", "block", params.Number)
 				return sqlc.CreateBlockRow{}, nil
 			}
 			if isConstraintViolation(err) {
@@ -59,7 +59,7 @@ func (s *Store) SaveERC20Transfer(ctx context.Context, params sqlc.CreateERC20Tr
 			// count++
 			// log.Printf("Error inserting ERC20 Transfer %s-%d, attempt %d: %v", params.TxHash, params.LogIndex, count, err)
 			if errors.Is(err, pgx.ErrNoRows) {
-				log.Printf("ERC20 Transfer %s-%d already exists (idempotent skip)", params.TxHash, params.LogIndex)
+				slog.Debug("ERC20 transfer already exists (idempotent skip)", "txHash", params.TxHash, "logIndex", params.LogIndex)
 				return sqlc.CreateERC20TransferRow{}, nil
 			}
 			if isConstraintViolation(err) {

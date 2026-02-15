@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"strconv"
@@ -29,34 +29,38 @@ func main() {
 	// 1. Setup Database using existing sqlc.NewStore
 	sqlcStore, err := sqlc.NewStore()
 	if err != nil {
-		log.Fatalf("Failed to create store: %v", err)
+		slog.Error("Failed to create store", "error", err)
+		os.Exit(1)
 	}
 	defer sqlcStore.Close()
 
 	if err := sqlcStore.Ping(context.Background()); err != nil {
-		log.Fatalf("Failed to ping DB: %v", err)
+		slog.Error("Failed to ping DB", "error", err)
+		os.Exit(1)
 	}
-	log.Println("Connected to DB successfully")
+	slog.Info("Connected to DB successfully")
 
 	storageStore := storage.NewStore(sqlcStore)
 
 	// 2. Setup Eth Client
 	rawurl, exist := os.LookupEnv(RpcUrl)
 	if !exist || rawurl == "" {
-		log.Println("RPC_URL is missing!!! so continuing with default RPC")
+		slog.Warn("RPC_URL is missing, continuing with default RPC")
 		rawurl = "https://eth.llamarpc.com"
 	}
 
 	client, err := ethclient.Dial(rawurl)
 	if err != nil {
-		log.Fatalf("Failed to dial RPC: %v", err)
+		slog.Error("Failed to dial RPC", "error", err)
+		os.Exit(1)
 	}
 	defer client.Close()
 	safeBlockDepth, err := getSafeBlockDepth()
 	if err != nil {
-		log.Fatalf("Failed to get safe block depth: %v", err)
+		slog.Error("Failed to get safe block depth", "error", err)
+		os.Exit(1)
 	}
-	log.Printf("Safe block depth: %d \n", safeBlockDepth)
+	slog.Info("Safe block depth configured", "depth", safeBlockDepth)
 
 	// 3. Setup Fetcher
 	fetcher := gateway.NewBlockFetcher(client)
@@ -64,28 +68,32 @@ func main() {
 	// 4. Determine Range
 	latestBlockNumberOnchain, err := fetcher.GetBlockNumberWithRetry(context.Background())
 	if err != nil {
-		log.Fatalf("Failed to get latest block: %v", err)
+		slog.Error("Failed to get latest block", "error", err)
+		os.Exit(1)
 	}
-	log.Printf("Latest onchain Block No: %d \n", latestBlockNumberOnchain)
+	slog.Info("Latest onchain block", "block", latestBlockNumberOnchain)
 
 	processedLastBlock, err := storageStore.GetLatestProcessedBlockNumber(context.Background())
 	if err != nil && !errors.Is(err, storage.ErrBlockNotFound) {
-		log.Fatalf("Failed to get latest processed block number: %v", err)
+		slog.Error("Failed to get latest processed block number", "error", err)
+		os.Exit(1)
 	}
 
 	if processedLastBlock == 0 {
 		startBlock, err := getStartBlock()
 		if err != nil {
-			log.Fatalf("Failed to get start block: %v", err)
+			slog.Error("Failed to get start block", "error", err)
+			os.Exit(1)
 		}
 		processedLastBlock = int64(startBlock) - 1
 	}
 
 	start := processedLastBlock + 1
 	end := int64(latestBlockNumberOnchain - safeBlockDepth)
-	log.Printf("Processed Last Block: %d and Latest Block onchain: %d, total diff: %d \nHit Enter to continue or Ctrl+C to exit", processedLastBlock, latestBlockNumberOnchain, latestBlockNumberOnchain-uint64(processedLastBlock))
+	slog.Info("Indexing range determined", "lastProcessed", processedLastBlock, "latestOnchain", latestBlockNumberOnchain, "diff", latestBlockNumberOnchain-uint64(processedLastBlock))
+	fmt.Println("Hit Enter to continue or Ctrl+C to exit")
 	fmt.Scanln()
-	log.Printf("Starting indexing from %d to %d", start, end)
+	slog.Info("Starting indexing", "from", start, "to", end)
 
 	// 5. Run Indexer
 	idx := indexer.NewIndexer(fetcher, storageStore)
@@ -99,10 +107,9 @@ func main() {
 	startTime := time.Now()
 	lastProcessedBlock, err := idx.Run(ctx, start, end)
 	if err != nil {
-		log.Printf("Indexer stopped with error: %v", err)
+		slog.Error("Indexer stopped with error", "error", err)
 	}
-	log.Printf("Total Blocks Indexed: %d/%s", lastProcessedBlock-start+1, time.Since(startTime))
-
+	slog.Info("Indexing complete", "blocksIndexed", lastProcessedBlock-start+1, "duration", time.Since(startTime))
 }
 
 func getStartBlock() (uint64, error) {
@@ -124,7 +131,7 @@ func getSafeBlockDepth() (uint64, error) {
 	}
 	safeBlockDepth, err := strconv.ParseUint(safeBlockDepthStr, 10, 64)
 	if err != nil {
-		log.Printf("Failed to parse safe block depth: %v, using default value 12", err)
+		slog.Warn("Failed to parse safe block depth, using default", "error", err, "default", defaultBlockDepth)
 		return defaultBlockDepth, nil // default safe block depth is 12
 	}
 	return safeBlockDepth, nil
