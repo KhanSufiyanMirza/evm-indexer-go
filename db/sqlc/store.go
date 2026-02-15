@@ -31,7 +31,7 @@ func NewStore() (Store, error) {
 	if config.DBName == "" || config.Host == "" {
 		return nil, fmt.Errorf("invalid config for host:%v", config.Host)
 	}
-	dsn := fmt.Sprintf(dataSourceURIFmt, config.Username, config.Password, config.Host, config.DBName, config.AppName)
+	dsn := fmt.Sprintf(dataSourceURIFmt, config.Username, config.Password, config.Host, config.Port, config.DBName, config.AppName)
 
 	connPool, err := pgxpool.New(context.Background(), dsn)
 	if err != nil {
@@ -60,7 +60,7 @@ const (
 	RDB_PASSWD        = "RDB_PASSWD"
 	RDB_DB_NAME       = "RDB_DB_NAME"
 	APP_NAME          = "APP_NAME"
-	dataSourceURIFmt  = "postgresql://%s:%s@%s/%s?sslmode=disable&application_name=%s"
+	dataSourceURIFmt  = "postgresql://%s:%s@%s:%d/%s?sslmode=disable&application_name=%s"
 )
 
 type RDBConfigOptions struct {
