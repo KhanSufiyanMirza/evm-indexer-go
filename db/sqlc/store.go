@@ -29,7 +29,7 @@ func NewStore() (Store, error) {
 		return nil, err
 	}
 	if config.DBName == "" || config.Host == "" {
-		return nil, fmt.Errorf("invalid config for host:%v", config.Host)
+		return nil, fmt.Errorf("invalid config for host: %s", config.Host)
 	}
 	dsn := fmt.Sprintf(dataSourceURIFmt, config.Username, config.Password, config.Host, config.Port, config.DBName, config.AppName)
 

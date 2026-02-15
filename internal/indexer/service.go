@@ -45,7 +45,7 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 				isFirstRun = true
 			} else {
 				log.Printf("Failed to get previous block %d: %v", num-1, err)
-				return lastProcessedBlock, fmt.Errorf("failed to get previous block %d: %v", num-1, err)
+				return lastProcessedBlock, fmt.Errorf("failed to get previous block %d: %w", num-1, err)
 			}
 		}
 
@@ -53,7 +53,7 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 		block, err := i.fetcher.Fetch(opCtx, uint64(num))
 		if err != nil {
 			log.Printf("Failed to fetch block %d: %v", num, err)
-			return lastProcessedBlock, fmt.Errorf("failed to fetch block %d: %v", num, err)
+			return lastProcessedBlock, fmt.Errorf("failed to fetch block %d: %w", num, err)
 		}
 
 		if !isFirstRun && previousBlock.Hash != block.ParentHash().String() {
@@ -62,14 +62,14 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 			// 1. Find Common Ancestor
 			ancestorBlockNumber, err := i.findCommonAncestor(opCtx, num-1)
 			if err != nil {
-				return lastProcessedBlock, fmt.Errorf("failed to find common ancestor: %v", err)
+				return lastProcessedBlock, fmt.Errorf("failed to find common ancestor: %w", err)
 			}
 			log.Printf("Found common ancestor at block %d", ancestorBlockNumber)
 
 			// 2. Rollback
 			err = i.store.MarkBlockReorgedRange(opCtx, ancestorBlockNumber)
 			if err != nil {
-				return lastProcessedBlock, fmt.Errorf("failed to rollback from block %d: %v", ancestorBlockNumber, err)
+				return lastProcessedBlock, fmt.Errorf("failed to rollback from block %d: %w", ancestorBlockNumber, err)
 			}
 			log.Printf("Rolled back data > block %d", ancestorBlockNumber)
 
@@ -92,14 +92,14 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 		})
 		if err != nil {
 			log.Printf("Failed to save block %d: %v", num, err)
-			return lastProcessedBlock, fmt.Errorf("failed to save block %d: %v", num, err)
+			return lastProcessedBlock, fmt.Errorf("failed to save block %d: %w", num, err)
 		}
 
 		// 3. Insert ERC20 Transfers (batch)
 		erc20Transfers, err := i.fetcher.GetERC20TransfersInRange(opCtx, block.NumberU64(), block.NumberU64())
 		if err != nil {
 			log.Printf("Failed to get ERC20 transfers for block %d: %v", num, err)
-			return lastProcessedBlock, fmt.Errorf("failed to get ERC20 transfers for block %d: %v", num, err)
+			return lastProcessedBlock, fmt.Errorf("failed to get ERC20 transfers for block %d: %w", num, err)
 		}
 		batchParams := make([]sqlc.BatchCreateERC20TransferParams, 0, len(erc20Transfers))
 		for _, transferLog := range erc20Transfers {
@@ -123,7 +123,7 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 		err = i.store.SaveERC20TransferBatch(opCtx, batchParams)
 		if err != nil {
 			log.Printf("Failed to save ERC20 Transfers for block %d: %v", num, err)
-			return lastProcessedBlock, fmt.Errorf("failed to save ERC20 Transfers for block %d: %v", num, err)
+			return lastProcessedBlock, fmt.Errorf("failed to save ERC20 Transfers for block %d: %w", num, err)
 		}
 		log.Printf("Successfully indexed ERC20 Transfers for block %d and count: %d \n", num, len(batchParams))
 
@@ -134,7 +134,7 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 		err = i.store.MarkBlockProcessed(opCtx, num)
 		if err != nil {
 			log.Printf("Failed to mark block %d as processed: %v", num, err)
-			return lastProcessedBlock, fmt.Errorf("failed to mark block %d as processed: %v", num, err)
+			return lastProcessedBlock, fmt.Errorf("failed to mark block %d as processed: %w", num, err)
 		}
 
 		lastProcessedBlock = num
@@ -165,7 +165,7 @@ func (i *Indexer) findCommonAncestor(ctx context.Context, startBlock int64) (int
 		// 1. Get canonical block
 		canonicalBlock, err := i.fetcher.Fetch(ctx, uint64(current))
 		if err != nil {
-			return 0, fmt.Errorf("failed to fetch canonical block %d: %v", current, err)
+			return 0, fmt.Errorf("failed to fetch canonical block %d: %w", current, err)
 		}
 
 		// 2. Get local block
@@ -175,7 +175,7 @@ func (i *Indexer) findCommonAncestor(ctx context.Context, startBlock int64) (int
 			// Or maybe we haven't indexed it yet?
 			// But we are walking BACK from a block we presumably have.
 			// If we fail to get it, it's a critical error.
-			return 0, fmt.Errorf("failed to get db block %d: %v", current, err)
+			return 0, fmt.Errorf("failed to get db block %d: %w", current, err)
 		}
 
 		// 3. Compare
