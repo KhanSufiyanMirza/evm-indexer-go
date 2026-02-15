@@ -1,0 +1,27 @@
+# Binaries
+bin/
+main
+evm-indexer-go
+
+# Environment Variables
+.env
+
+
+# IDEs and Editors
+.vscode/
+.cursor/
+.idea/
+*.swp
+*.swo
+
+# OS Files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Logs
+*.log
+
+# Test binaries
+*.test
+__debug_bin
