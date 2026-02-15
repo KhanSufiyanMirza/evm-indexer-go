@@ -45,7 +45,7 @@ type blockFetcher struct {
 // }
 
 // NewBlockFetcher returns a BlockFetcher that fetches blocks using the provided ethclient.Client.
-func NewBlockFetcher(client *ethclient.Client) *blockFetcher {
+func NewBlockFetcher(client *ethclient.Client) BlockFetcher {
 	return &blockFetcher{client: client}
 }
 
