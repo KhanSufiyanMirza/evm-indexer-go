@@ -113,7 +113,7 @@ func (s *Store) GetLatestProcessedBlockNumber(ctx context.Context) (int64, error
 }
 
 func retry[T any](ctx context.Context, op func() (T, error)) (T, error) {
-	return backoff.Retry(ctx, op)
+	return backoff.Retry(ctx, op, backoff.WithMaxTries(5))
 }
 
 func isConstraintViolation(err error) bool {
