@@ -19,8 +19,9 @@ import (
 )
 
 const (
-	RpcUrl     = "RPC_URL"
-	StartBlock = "START_BLOCK"
+	RpcUrl         = "RPC_URL"
+	StartBlock     = "START_BLOCK"
+	SafeBlockDepth = "SAFE_BLOCK_DEPTH"
 )
 
 func main() {
@@ -50,6 +51,11 @@ func main() {
 		log.Fatalf("Failed to dial RPC: %v", err)
 	}
 	defer client.Close()
+	safeBlockDepth, err := getSafeBlockDepth()
+	if err != nil {
+		log.Fatalf("Failed to get safe block depth: %v", err)
+	}
+	log.Printf("Safe block depth: %d \n", safeBlockDepth)
 
 	// 3. Setup Fetcher
 	fetcher := gateway.NewBlockFetcher(client)
@@ -59,7 +65,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to get latest block: %v", err)
 	}
-	log.Printf("Latest Block No: %d \n", latestBlockNumberOnchain)
+	log.Printf("Latest onchain Block No: %d \n", latestBlockNumberOnchain)
 
 	processedLastBlock, err := storageStore.GetLatestProcessedBlockNumber(context.Background())
 	if err != nil {
@@ -73,7 +79,7 @@ func main() {
 	}
 
 	start := processedLastBlock + 1
-	end := int64(latestBlockNumberOnchain)
+	end := int64(latestBlockNumberOnchain - safeBlockDepth)
 	log.Printf("Processed Last Block: %d and Latest Block onchain: %d, total diff: %d \nHit Enter to continue or Ctrl+C to exit", processedLastBlock, latestBlockNumberOnchain, latestBlockNumberOnchain-uint64(processedLastBlock))
 	fmt.Scanln()
 	log.Printf("Starting indexing from %d to %d", start, end)
@@ -106,4 +112,16 @@ func getStartBlock() (uint64, error) {
 		return 0, err
 	}
 	return startBlock, nil
+}
+func getSafeBlockDepth() (uint64, error) {
+	safeBlockDepthStr, exist := os.LookupEnv(SafeBlockDepth)
+	if !exist {
+		return 12, nil // default safe block depth is 12
+	}
+	safeBlockDepth, err := strconv.ParseUint(safeBlockDepthStr, 10, 64)
+	if err != nil {
+		log.Printf("Failed to parse safe block depth: %v, using default value 12", err)
+		return 12, nil // default safe block depth is 12
+	}
+	return safeBlockDepth, nil
 }
