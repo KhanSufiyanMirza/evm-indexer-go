@@ -17,11 +17,12 @@ WHERE hash = $1;
 -- name: GetBlockByNumber :one
 SELECT id, hash, number, parent_hash, timestamp
 FROM blocks
-WHERE number = $1;
+WHERE number = $1 AND is_canonical = TRUE;
 
 -- name: ListBlocks :many
 SELECT id, hash, number, parent_hash, timestamp
 FROM blocks
+WHERE is_canonical = TRUE
 ORDER BY number DESC
 LIMIT $1 OFFSET $2;
 
@@ -44,10 +45,10 @@ SELECT COUNT(*) as count
 FROM blocks;
 
 -- name: GetLatestBlockNumber :one
-SELECT MAX(number)::Bigint FROM blocks HAVING MAX(number) IS NOT NULL;
+SELECT MAX(number)::Bigint FROM blocks WHERE is_canonical = TRUE HAVING MAX(number) IS NOT NULL;
 
 -- name: GetLatestProcessedBlockNumber :one
-SELECT MAX(number)::Bigint FROM blocks WHERE processed_at IS NOT NULL HAVING MAX(number) IS NOT NULL;
+SELECT MAX(number)::Bigint FROM blocks WHERE processed_at IS NOT NULL AND is_canonical = TRUE HAVING MAX(number) IS NOT NULL;
 
 -- name: MarkBlockProcessed :exec
 UPDATE blocks

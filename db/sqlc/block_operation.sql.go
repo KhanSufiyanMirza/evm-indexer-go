@@ -149,7 +149,7 @@ func (q *Queries) GetBlockByID(ctx context.Context, id int32) (GetBlockByIDRow, 
 const getBlockByNumber = `-- name: GetBlockByNumber :one
 SELECT id, hash, number, parent_hash, timestamp
 FROM blocks
-WHERE number = $1
+WHERE number = $1 AND is_canonical = TRUE
 `
 
 type GetBlockByNumberRow struct {
@@ -174,7 +174,7 @@ func (q *Queries) GetBlockByNumber(ctx context.Context, number int64) (GetBlockB
 }
 
 const getLatestBlockNumber = `-- name: GetLatestBlockNumber :one
-SELECT MAX(number)::Bigint FROM blocks HAVING MAX(number) IS NOT NULL
+SELECT MAX(number)::Bigint FROM blocks WHERE is_canonical = TRUE HAVING MAX(number) IS NOT NULL
 `
 
 func (q *Queries) GetLatestBlockNumber(ctx context.Context) (int64, error) {
@@ -185,7 +185,7 @@ func (q *Queries) GetLatestBlockNumber(ctx context.Context) (int64, error) {
 }
 
 const getLatestProcessedBlockNumber = `-- name: GetLatestProcessedBlockNumber :one
-SELECT MAX(number)::Bigint FROM blocks WHERE processed_at IS NOT NULL HAVING MAX(number) IS NOT NULL
+SELECT MAX(number)::Bigint FROM blocks WHERE processed_at IS NOT NULL AND is_canonical = TRUE HAVING MAX(number) IS NOT NULL
 `
 
 func (q *Queries) GetLatestProcessedBlockNumber(ctx context.Context) (int64, error) {
@@ -198,6 +198,7 @@ func (q *Queries) GetLatestProcessedBlockNumber(ctx context.Context) (int64, err
 const listBlocks = `-- name: ListBlocks :many
 SELECT id, hash, number, parent_hash, timestamp
 FROM blocks
+WHERE is_canonical = TRUE
 ORDER BY number DESC
 LIMIT $1 OFFSET $2
 `
