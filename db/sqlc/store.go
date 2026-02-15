@@ -60,7 +60,7 @@ const (
 	RDB_PASSWD        = "RDB_PASSWD"
 	RDB_DB_NAME       = "RDB_DB_NAME"
 	APP_NAME          = "APP_NAME"
-	dataSourceURIFmt  = "postgresql://%s:%s@%s/%s?sslmode=disable&application_name=$%s"
+	dataSourceURIFmt  = "postgresql://%s:%s@%s/%s?sslmode=disable&application_name=%s"
 )
 
 type RDBConfigOptions struct {
