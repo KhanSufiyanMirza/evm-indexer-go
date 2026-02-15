@@ -114,14 +114,15 @@ func getStartBlock() (uint64, error) {
 	return startBlock, nil
 }
 func getSafeBlockDepth() (uint64, error) {
+	var defaultBlockDepth uint64 = 12
 	safeBlockDepthStr, exist := os.LookupEnv(SafeBlockDepth)
 	if !exist {
-		return 12, nil // default safe block depth is 12
+		return defaultBlockDepth, nil // default safe block depth is 12
 	}
 	safeBlockDepth, err := strconv.ParseUint(safeBlockDepthStr, 10, 64)
 	if err != nil {
 		log.Printf("Failed to parse safe block depth: %v, using default value 12", err)
-		return 12, nil // default safe block depth is 12
+		return defaultBlockDepth, nil // default safe block depth is 12
 	}
 	return safeBlockDepth, nil
 }

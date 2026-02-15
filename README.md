@@ -116,4 +116,6 @@ The project includes a `makefile` to simplify common development tasks. Run `mak
 - DB Errors (except constraint violation errors)
 - Network errors
 - re-orgs
+### Rollback strategy for reorg?
+we have decided hard delete model for now.
 
