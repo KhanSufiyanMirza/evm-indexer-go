@@ -116,12 +116,13 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 			// If it exists, we get pgx.ErrNoRows (handled by store.SaveERC20Transfer).
 			// This is idempotent.
 			err = i.store.SaveERC20Transfer(opCtx, sqlc.CreateERC20TransferParams{
-				TxHash:      transferLog.TxHash.String(),
-				LogIndex:    int32(transferLog.Index),
-				BlockNumber: int64(num),
-				FromAddress: from.Hex(),
-				ToAddress:   to.Hex(),
-				Value:       pgtype.Numeric{Int: value, Valid: true},
+				TxHash:       transferLog.TxHash.String(),
+				LogIndex:     int32(transferLog.Index),
+				BlockNumber:  int64(num),
+				FromAddress:  from.Hex(),
+				ToAddress:    to.Hex(),
+				Value:        pgtype.Numeric{Int: value, Valid: true},
+				TokenAddress: transferLog.Address.Hex(),
 			})
 			if err != nil {
 				log.Printf("Failed to save ERC20 Transfer for block %d: %v", num, err)

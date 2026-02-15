@@ -31,4 +31,5 @@ type Erc20Transfer struct {
 	Value           pgtype.Numeric   `json:"value"`
 	IsCanonical     pgtype.Bool      `json:"isCanonical"`
 	ReorgDetectedAt pgtype.Timestamp `json:"reorgDetectedAt"`
+	TokenAddress    string           `json:"tokenAddress"`
 }

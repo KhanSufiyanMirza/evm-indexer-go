@@ -24,28 +24,30 @@ func (q *Queries) CountERC20Transfers(ctx context.Context) (int64, error) {
 }
 
 const createERC20Transfer = `-- name: CreateERC20Transfer :one
-INSERT INTO erc20_transfers (tx_hash, log_index, from_address, to_address, value, block_number)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO erc20_transfers (tx_hash, log_index, from_address, to_address, value, block_number, token_address)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT (tx_hash, log_index) DO NOTHING
-RETURNING tx_hash, log_index, from_address, to_address, value, block_number
+RETURNING tx_hash, log_index, from_address, to_address, value, block_number, token_address
 `
 
 type CreateERC20TransferParams struct {
-	TxHash      string         `json:"txHash"`
-	LogIndex    int32          `json:"logIndex"`
-	FromAddress string         `json:"fromAddress"`
-	ToAddress   string         `json:"toAddress"`
-	Value       pgtype.Numeric `json:"value"`
-	BlockNumber int64          `json:"blockNumber"`
+	TxHash       string         `json:"txHash"`
+	LogIndex     int32          `json:"logIndex"`
+	FromAddress  string         `json:"fromAddress"`
+	ToAddress    string         `json:"toAddress"`
+	Value        pgtype.Numeric `json:"value"`
+	BlockNumber  int64          `json:"blockNumber"`
+	TokenAddress string         `json:"tokenAddress"`
 }
 
 type CreateERC20TransferRow struct {
-	TxHash      string         `json:"txHash"`
-	LogIndex    int32          `json:"logIndex"`
-	FromAddress string         `json:"fromAddress"`
-	ToAddress   string         `json:"toAddress"`
-	Value       pgtype.Numeric `json:"value"`
-	BlockNumber int64          `json:"blockNumber"`
+	TxHash       string         `json:"txHash"`
+	LogIndex     int32          `json:"logIndex"`
+	FromAddress  string         `json:"fromAddress"`
+	ToAddress    string         `json:"toAddress"`
+	Value        pgtype.Numeric `json:"value"`
+	BlockNumber  int64          `json:"blockNumber"`
+	TokenAddress string         `json:"tokenAddress"`
 }
 
 func (q *Queries) CreateERC20Transfer(ctx context.Context, arg CreateERC20TransferParams) (CreateERC20TransferRow, error) {
@@ -56,6 +58,7 @@ func (q *Queries) CreateERC20Transfer(ctx context.Context, arg CreateERC20Transf
 		arg.ToAddress,
 		arg.Value,
 		arg.BlockNumber,
+		arg.TokenAddress,
 	)
 	var i CreateERC20TransferRow
 	err := row.Scan(
@@ -65,6 +68,7 @@ func (q *Queries) CreateERC20Transfer(ctx context.Context, arg CreateERC20Transf
 		&i.ToAddress,
 		&i.Value,
 		&i.BlockNumber,
+		&i.TokenAddress,
 	)
 	return i, err
 }
@@ -80,7 +84,7 @@ func (q *Queries) DeleteERC20TransfersFromHeight(ctx context.Context, blockNumbe
 }
 
 const getERC20Transfer = `-- name: GetERC20Transfer :one
-SELECT tx_hash, log_index, from_address, to_address, value, block_number
+SELECT tx_hash, log_index, from_address, to_address, value, block_number, token_address
 FROM erc20_transfers
 WHERE tx_hash = $1 AND log_index = $2
 `
@@ -91,12 +95,13 @@ type GetERC20TransferParams struct {
 }
 
 type GetERC20TransferRow struct {
-	TxHash      string         `json:"txHash"`
-	LogIndex    int32          `json:"logIndex"`
-	FromAddress string         `json:"fromAddress"`
-	ToAddress   string         `json:"toAddress"`
-	Value       pgtype.Numeric `json:"value"`
-	BlockNumber int64          `json:"blockNumber"`
+	TxHash       string         `json:"txHash"`
+	LogIndex     int32          `json:"logIndex"`
+	FromAddress  string         `json:"fromAddress"`
+	ToAddress    string         `json:"toAddress"`
+	Value        pgtype.Numeric `json:"value"`
+	BlockNumber  int64          `json:"blockNumber"`
+	TokenAddress string         `json:"tokenAddress"`
 }
 
 func (q *Queries) GetERC20Transfer(ctx context.Context, arg GetERC20TransferParams) (GetERC20TransferRow, error) {
@@ -109,12 +114,13 @@ func (q *Queries) GetERC20Transfer(ctx context.Context, arg GetERC20TransferPara
 		&i.ToAddress,
 		&i.Value,
 		&i.BlockNumber,
+		&i.TokenAddress,
 	)
 	return i, err
 }
 
 const listERC20TransfersByTxHash = `-- name: ListERC20TransfersByTxHash :many
-SELECT tx_hash, log_index, from_address, to_address, value, block_number
+SELECT tx_hash, log_index, from_address, to_address, value, block_number, token_address
 FROM erc20_transfers
 WHERE tx_hash = $1
 ORDER BY log_index ASC
@@ -128,12 +134,13 @@ type ListERC20TransfersByTxHashParams struct {
 }
 
 type ListERC20TransfersByTxHashRow struct {
-	TxHash      string         `json:"txHash"`
-	LogIndex    int32          `json:"logIndex"`
-	FromAddress string         `json:"fromAddress"`
-	ToAddress   string         `json:"toAddress"`
-	Value       pgtype.Numeric `json:"value"`
-	BlockNumber int64          `json:"blockNumber"`
+	TxHash       string         `json:"txHash"`
+	LogIndex     int32          `json:"logIndex"`
+	FromAddress  string         `json:"fromAddress"`
+	ToAddress    string         `json:"toAddress"`
+	Value        pgtype.Numeric `json:"value"`
+	BlockNumber  int64          `json:"blockNumber"`
+	TokenAddress string         `json:"tokenAddress"`
 }
 
 func (q *Queries) ListERC20TransfersByTxHash(ctx context.Context, arg ListERC20TransfersByTxHashParams) ([]ListERC20TransfersByTxHashRow, error) {
@@ -152,6 +159,7 @@ func (q *Queries) ListERC20TransfersByTxHash(ctx context.Context, arg ListERC20T
 			&i.ToAddress,
 			&i.Value,
 			&i.BlockNumber,
+			&i.TokenAddress,
 		); err != nil {
 			return nil, err
 		}

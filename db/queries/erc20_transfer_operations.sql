@@ -1,16 +1,16 @@
 -- name: CreateERC20Transfer :one
-INSERT INTO erc20_transfers (tx_hash, log_index, from_address, to_address, value, block_number)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO erc20_transfers (tx_hash, log_index, from_address, to_address, value, block_number, token_address)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT (tx_hash, log_index) DO NOTHING
-RETURNING tx_hash, log_index, from_address, to_address, value, block_number;
+RETURNING tx_hash, log_index, from_address, to_address, value, block_number, token_address;
 
 -- name: GetERC20Transfer :one
-SELECT tx_hash, log_index, from_address, to_address, value, block_number
+SELECT tx_hash, log_index, from_address, to_address, value, block_number, token_address
 FROM erc20_transfers
 WHERE tx_hash = $1 AND log_index = $2;
 
 -- name: ListERC20TransfersByTxHash :many
-SELECT tx_hash, log_index, from_address, to_address, value, block_number
+SELECT tx_hash, log_index, from_address, to_address, value, block_number, token_address
 FROM erc20_transfers
 WHERE tx_hash = $1
 ORDER BY log_index ASC
