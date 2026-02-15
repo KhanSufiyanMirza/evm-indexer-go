@@ -9,6 +9,7 @@ import (
 )
 
 type Querier interface {
+	BatchCreateERC20Transfer(ctx context.Context, arg []BatchCreateERC20TransferParams) *BatchCreateERC20TransferBatchResults
 	CountBlocks(ctx context.Context) (int64, error)
 	CountERC20Transfers(ctx context.Context) (int64, error)
 	CreateBlock(ctx context.Context, arg CreateBlockParams) (CreateBlockRow, error)

@@ -72,6 +72,31 @@ func (s *Store) SaveERC20Transfer(ctx context.Context, params sqlc.CreateERC20Tr
 	return err
 }
 
+// SaveERC20TransferBatch inserts multiple ERC20 transfers in a single batch round-trip.
+// Each individual insert uses ON CONFLICT DO NOTHING for idempotency.
+func (s *Store) SaveERC20TransferBatch(ctx context.Context, params []sqlc.BatchCreateERC20TransferParams) error {
+	if len(params) == 0 {
+		return nil
+	}
+	_, err := retry(ctx, func() (bool, error) {
+		batchResults := s.BatchCreateERC20Transfer(ctx, params)
+		var batchErr error
+		batchResults.Exec(func(i int, err error) {
+			if err != nil {
+				batchErr = err
+			}
+		})
+		if batchErr != nil {
+			if isConstraintViolation(batchErr) {
+				return false, backoff.Permanent(batchErr)
+			}
+			return false, batchErr
+		}
+		return true, nil
+	})
+	return err
+}
+
 func (s *Store) MarkBlockProcessed(ctx context.Context, blockNumber int64) error {
 	_, err := retry(ctx, func() (bool, error) {
 		err := s.Store.MarkBlockProcessed(ctx, blockNumber)

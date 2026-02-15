@@ -95,27 +95,21 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 			return lastProcessedBlock, fmt.Errorf("failed to save block %d: %v", num, err)
 		}
 
-		// 3. Insert ERC20 Transfers
+		// 3. Insert ERC20 Transfers (batch)
 		erc20Transfers, err := i.fetcher.GetERC20TransfersInRange(opCtx, block.NumberU64(), block.NumberU64())
 		if err != nil {
 			log.Printf("Failed to get ERC20 transfers for block %d: %v", num, err)
 			return lastProcessedBlock, fmt.Errorf("failed to get ERC20 transfers for block %d: %v", num, err)
 		}
-		count := 0
+		batchParams := make([]sqlc.BatchCreateERC20TransferParams, 0, len(erc20Transfers))
 		for _, transferLog := range erc20Transfers {
 			from, to, value, ok := gateway.DecodeERC20TransferLog(transferLog)
 			if !ok {
 				// NOTE: ERC721 Transfer event has 4 topics and ERC20 Transfer event has 3 topics both have same signature
 				// so we can't differentiate between them just by signature
-				// un-comment below line to log the error
-				// log.Printf("Failed to decode Log for ERC20 Transfer for block %d could be ERC721 if topic count is 4, length: %d", num, len(transferLog.Topics))
 				continue
 			}
-			count++
-			// Note: CreateERC20Transfer uses ON CONFLICT DO NOTHING.
-			// If it exists, we get pgx.ErrNoRows (handled by store.SaveERC20Transfer).
-			// This is idempotent.
-			err = i.store.SaveERC20Transfer(opCtx, sqlc.CreateERC20TransferParams{
+			batchParams = append(batchParams, sqlc.BatchCreateERC20TransferParams{
 				TxHash:       transferLog.TxHash.String(),
 				LogIndex:     int32(transferLog.Index),
 				BlockNumber:  int64(num),
@@ -124,12 +118,14 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 				Value:        pgtype.Numeric{Int: value, Valid: true},
 				TokenAddress: transferLog.Address.Hex(),
 			})
-			if err != nil {
-				log.Printf("Failed to save ERC20 Transfer for block %d: %v", num, err)
-				return lastProcessedBlock, fmt.Errorf("failed to save ERC20 Transfer for block %d: %v", num, err)
-			}
 		}
-		log.Printf("Successfully indexed ERC20 Transfers for block %d and count: %d \n", num, count)
+		// Batch insert uses ON CONFLICT DO NOTHING for idempotency.
+		err = i.store.SaveERC20TransferBatch(opCtx, batchParams)
+		if err != nil {
+			log.Printf("Failed to save ERC20 Transfers for block %d: %v", num, err)
+			return lastProcessedBlock, fmt.Errorf("failed to save ERC20 Transfers for block %d: %v", num, err)
+		}
+		log.Printf("Successfully indexed ERC20 Transfers for block %d and count: %d \n", num, len(batchParams))
 
 		// 3. Mark Processed (Guard)
 		// This step is conceptually mostly for tracking or if we had downstream jobs.
