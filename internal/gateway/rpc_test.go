@@ -3,7 +3,6 @@ package gateway
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 	"testing"
 
@@ -20,7 +19,7 @@ func TestERC20TransferEventHash(t *testing.T) {
 func TestGetLogsInRange(t *testing.T) {
 	client, err := ethclient.Dial("https://eth.llamarpc.com")
 	if err != nil {
-		log.Fatalf("Failed to dial RPC: %v", err)
+		t.Fatalf("Failed to dial RPC: %v", err)
 	}
 	defer client.Close()
 	fetcher := NewBlockFetcher(client)
@@ -48,7 +47,7 @@ func TestGetLogsInRange(t *testing.T) {
 func TestGetERC20TransfersInRange(t *testing.T) {
 	client, err := ethclient.Dial("https://eth.llamarpc.com")
 	if err != nil {
-		log.Fatalf("Failed to dial RPC: %v", err)
+		t.Fatalf("Failed to dial RPC: %v", err)
 	}
 	defer client.Close()
 	fetcher := NewBlockFetcher(client)
