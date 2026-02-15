@@ -117,5 +117,6 @@ The project includes a `makefile` to simplify common development tasks. Run `mak
 - Network errors
 - re-orgs
 ### Rollback strategy for reorg?
-we have decided hard delete model for now.
+we have decided soft delete model.
+is_canonical flag is used to identify if the block is canonical or not.
 
