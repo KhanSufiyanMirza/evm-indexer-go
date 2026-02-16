@@ -139,6 +139,7 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 
 		lastProcessedBlock = num
 		slog.Info("Successfully indexed block", "block", num)
+		slog.Info("----------------- -----------------")
 	}
 	return lastProcessedBlock, nil
 }
