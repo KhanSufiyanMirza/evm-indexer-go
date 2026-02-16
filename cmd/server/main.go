@@ -91,9 +91,10 @@ func main() {
 	start := processedLastBlock + 1
 	end := int64(latestBlockNumberOnchain - safeBlockDepth)
 	slog.Info("Indexing range determined", "lastProcessed", processedLastBlock, "latestOnchain", latestBlockNumberOnchain, "diff", latestBlockNumberOnchain-uint64(processedLastBlock))
-	fmt.Println("Hit Enter to continue or Ctrl+C to exit")
-	fmt.Scanln()
+	// fmt.Println("Hit Enter to continue or Ctrl+C to exit")
+	// fmt.Scanln()
 	slog.Info("Starting indexing", "from", start, "to", end)
+	slog.Info("---------------------------------------------")
 
 	// 5. Run Indexer
 	idx := indexer.NewIndexer(fetcher, storageStore)
