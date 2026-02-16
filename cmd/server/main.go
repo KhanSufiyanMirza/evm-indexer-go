@@ -20,9 +20,12 @@ import (
 )
 
 const (
-	RpcUrl         = "RPC_URL"
-	StartBlock     = "START_BLOCK"
-	SafeBlockDepth = "SAFE_BLOCK_DEPTH"
+	RpcUrl              = "RPC_URL"
+	StartBlock          = "START_BLOCK"
+	SafeBlockDepth      = "SAFE_BLOCK_DEPTH"
+	Continuous          = "CONTINUOUS"
+	BlockPollInterval   = "BLOCK_POLL_INTERVAL"
+	defaultPollInterval = 12 * time.Second // ~Ethereum block time
 )
 
 func main() {
@@ -91,8 +94,12 @@ func main() {
 	start := processedLastBlock + 1
 	end := int64(latestBlockNumberOnchain - safeBlockDepth)
 	slog.Info("Indexing range determined", "lastProcessed", processedLastBlock, "latestOnchain", latestBlockNumberOnchain, "diff", latestBlockNumberOnchain-uint64(processedLastBlock))
-	// fmt.Println("Hit Enter to continue or Ctrl+C to exit")
-	// fmt.Scanln()
+
+	runContinuous := getContinuous()
+	pollInterval := getBlockPollInterval()
+	if runContinuous {
+		slog.Info("Continuous mode enabled", "pollInterval", pollInterval)
+	}
 	slog.Info("Starting indexing", "from", start, "to", end)
 	slog.Info("---------------------------------------------")
 
@@ -111,6 +118,37 @@ func main() {
 		slog.Error("Indexer stopped with error", "error", err)
 	}
 	slog.Info("Indexing complete", "blocksIndexed", lastProcessedBlock-start+1, "duration", time.Since(startTime))
+
+	// 6. Continuous mode: keep polling for new blocks until shutdown
+	if runContinuous && err == nil {
+		slog.Info("Entering continuous mode; polling for new blocks")
+		for {
+			select {
+			case <-ctx.Done():
+				slog.Info("Shutdown signal received, exiting continuous mode")
+				return
+			case <-time.After(pollInterval):
+			}
+			latest, err := fetcher.GetBlockNumberWithRetry(ctx)
+			if err != nil {
+				slog.Error("Failed to get latest block in continuous mode", "error", err)
+				continue
+			}
+			start = lastProcessedBlock + 1
+			end = int64(latest) - int64(safeBlockDepth)
+			if start > end {
+				slog.Debug("No new blocks to index", "lastProcessed", lastProcessedBlock, "latest", latest)
+				continue
+			}
+			slog.Info("New blocks available", "from", start, "to", end)
+			lastProcessedBlock, err = idx.Run(ctx, start, end)
+			if err != nil {
+				slog.Error("Indexer stopped with error in continuous mode", "error", err)
+				continue
+			}
+			slog.Info("Caught up", "lastProcessed", lastProcessedBlock, "blocksIndexed", lastProcessedBlock-start+1)
+		}
+	}
 }
 
 func getStartBlock() (uint64, error) {
@@ -136,4 +174,30 @@ func getSafeBlockDepth() (uint64, error) {
 		return defaultBlockDepth, nil // default safe block depth is 12
 	}
 	return safeBlockDepth, nil
+}
+
+func getContinuous() bool {
+	s, _ := os.LookupEnv(Continuous)
+	switch s {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
+
+func getBlockPollInterval() time.Duration {
+	s, exist := os.LookupEnv(BlockPollInterval)
+	if !exist || s == "" {
+		return defaultPollInterval
+	}
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		slog.Warn("Invalid BLOCK_POLL_INTERVAL, using default", "error", err, "default", defaultPollInterval)
+		return defaultPollInterval
+	}
+	if d < time.Second {
+		d = time.Second
+	}
+	return d
 }

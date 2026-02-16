@@ -34,6 +34,10 @@ RDB_DB_NAME=evm_indexer_go
 APP_NAME=evm-indexer-go
 RPC_URL=https://rpc.flashbots.net
 START_BLOCK=24347029
+# Optional: run continuously (poll for new blocks instead of exiting after one pass)
+# CONTINUOUS=true
+# Optional: poll interval in continuous mode (default 12s, ~1 Ethereum block)
+# BLOCK_POLL_INTERVAL=12s
 ```
 
 ### 3. Start Infrastructure
@@ -59,6 +63,8 @@ Start the indexer:
 ```bash
 make run
 ```
+
+With `CONTINUOUS=true` the indexer keeps running after the initial catch-up and polls for new blocks (every `BLOCK_POLL_INTERVAL`, default 12s), so the database stays near real-time.
 
 ## Development Commands
 
