@@ -26,10 +26,6 @@ func NewIndexer(fetcher gateway.BlockFetcher, store *storage.Store) *Indexer {
 }
 
 func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, error) {
-	// Use a separate context for operations to ensure the current block finishes processing
-	// even if the shutdown signal is received mid-processing.
-	opCtx := context.Background()
-
 	lastProcessedBlock := startBlock - 1
 
 	for num := startBlock; num <= endBlock; num++ {
@@ -38,6 +34,11 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 			return lastProcessedBlock, nil
 		default:
 		}
+
+		// Use a separate context with a timeout to ensure the current block finishes processing
+		// even if the shutdown signal is received mid-processing, but with a bounded deadline.
+		opCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+
 		previousBlock, err := i.store.GetBlockByNumber(opCtx, num-1)
 		isFirstRun := false
 		if err != nil {
@@ -45,6 +46,7 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 				isFirstRun = true
 			} else {
 				slog.Error("Failed to get previous block", "block", num-1, "error", err)
+				cancel()
 				return lastProcessedBlock, fmt.Errorf("failed to get previous block %d: %w", num-1, err)
 			}
 		}
@@ -53,6 +55,7 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 		block, err := i.fetcher.Fetch(opCtx, uint64(num))
 		if err != nil {
 			slog.Error("Failed to fetch block", "block", num, "error", err)
+			cancel()
 			return lastProcessedBlock, fmt.Errorf("failed to fetch block %d: %w", num, err)
 		}
 
@@ -62,6 +65,7 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 			// 1. Find Common Ancestor
 			ancestorBlockNumber, err := i.findCommonAncestor(opCtx, num-1)
 			if err != nil {
+				cancel()
 				return lastProcessedBlock, fmt.Errorf("failed to find common ancestor: %w", err)
 			}
 			slog.Info("Found common ancestor", "block", ancestorBlockNumber)
@@ -69,6 +73,7 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 			// 2. Rollback
 			err = i.store.MarkBlockReorgedRange(opCtx, ancestorBlockNumber)
 			if err != nil {
+				cancel()
 				return lastProcessedBlock, fmt.Errorf("failed to rollback from block %d: %w", ancestorBlockNumber, err)
 			}
 			slog.Info("Rolled back data above block", "block", ancestorBlockNumber)
@@ -78,6 +83,7 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 			// The loop increment will make it ancestorBlockNumber + 1 for the next iteration.
 			lastProcessedBlock = ancestorBlockNumber
 			num = ancestorBlockNumber
+			cancel()
 			continue
 		}
 		// 2. Insert Block
@@ -92,6 +98,7 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 		})
 		if err != nil {
 			slog.Error("Failed to save block", "block", num, "error", err)
+			cancel()
 			return lastProcessedBlock, fmt.Errorf("failed to save block %d: %w", num, err)
 		}
 
@@ -99,6 +106,7 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 		erc20Transfers, err := i.fetcher.GetERC20TransfersInRange(opCtx, block.NumberU64(), block.NumberU64())
 		if err != nil {
 			slog.Error("Failed to get ERC20 transfers", "block", num, "error", err)
+			cancel()
 			return lastProcessedBlock, fmt.Errorf("failed to get ERC20 transfers for block %d: %w", num, err)
 		}
 		batchParams := make([]sqlc.BatchCreateERC20TransferParams, 0, len(erc20Transfers))
@@ -123,6 +131,7 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 		err = i.store.SaveERC20TransferBatch(opCtx, batchParams)
 		if err != nil {
 			slog.Error("Failed to save ERC20 transfers", "block", num, "error", err)
+			cancel()
 			return lastProcessedBlock, fmt.Errorf("failed to save ERC20 Transfers for block %d: %w", num, err)
 		}
 		slog.Info("Indexed ERC20 transfers", "block", num, "count", len(batchParams))
@@ -134,12 +143,14 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 		err = i.store.MarkBlockProcessed(opCtx, num)
 		if err != nil {
 			slog.Error("Failed to mark block as processed", "block", num, "error", err)
+			cancel()
 			return lastProcessedBlock, fmt.Errorf("failed to mark block %d as processed: %w", num, err)
 		}
 
 		lastProcessedBlock = num
 		slog.Info("Successfully indexed block", "block", num)
 		slog.Info("----------------- -----------------")
+		cancel()
 	}
 	return lastProcessedBlock, nil
 }
@@ -155,7 +166,7 @@ func (i *Indexer) RunFinalizer(ctx context.Context, safeBlockDepth uint64) error
 			slog.Info("Finalizer shutting down", "lastFinalizedBlock", lastFinalizedBlock)
 			return nil
 		case <-ticker.C:
-			opCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			opCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			blockNumber, err := i.fetcher.GetBlockNumberWithRetry(opCtx)
 			if err != nil {
 				slog.Error("Failed to get block number", "error", err)
