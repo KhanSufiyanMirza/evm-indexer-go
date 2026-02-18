@@ -63,3 +63,8 @@ WHERE number > $1;
 UPDATE blocks
 SET is_canonical = FALSE, reorg_detected_at = NOW()
 WHERE number > $1;
+
+-- name: MarkBlockFinalized :exec
+UPDATE blocks
+SET status = 'FINALIZED'
+WHERE number <= $1 AND is_canonical = TRUE AND status != 'FINALIZED';

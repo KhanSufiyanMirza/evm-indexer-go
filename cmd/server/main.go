@@ -16,16 +16,17 @@ import (
 	"github.com/KhanSufiyanMirza/evm-indexer-go/internal/indexer"
 	"github.com/KhanSufiyanMirza/evm-indexer-go/internal/storage"
 	"github.com/ethereum/go-ethereum/ethclient"
-	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 const (
-	RpcUrl              = "RPC_URL"
-	StartBlock          = "START_BLOCK"
-	SafeBlockDepth      = "SAFE_BLOCK_DEPTH"
-	Continuous          = "CONTINUOUS"
-	BlockPollInterval   = "BLOCK_POLL_INTERVAL"
-	defaultPollInterval = 12 * time.Second // ~Ethereum block time
+	RpcUrl                = "RPC_URL"
+	StartBlock            = "START_BLOCK"
+	SafeBlockDepth        = "SAFE_BLOCK_DEPTH"
+	defaultSafeBlockDepth = 12
+	IngestionBlockDepth   = "INGESTION_BLOCK_DEPTH"
+	Continuous            = "CONTINUOUS"
+	BlockPollInterval     = "BLOCK_POLL_INTERVAL"
+	defaultPollInterval   = 12 * time.Second // ~Ethereum block time
 )
 
 func main() {
@@ -58,12 +59,12 @@ func main() {
 		os.Exit(1)
 	}
 	defer client.Close()
-	safeBlockDepth, err := getSafeBlockDepth()
+	ingestionBlockDepth, err := getIngestionBlockDepth()
 	if err != nil {
-		slog.Error("Failed to get safe block depth", "error", err)
+		slog.Error("Failed to get block depth", "error", err)
 		os.Exit(1)
 	}
-	slog.Info("Safe block depth configured", "depth", safeBlockDepth)
+	slog.Info("block depth configured for ingestion", "depth", ingestionBlockDepth)
 
 	// 3. Setup Fetcher
 	fetcher := gateway.NewBlockFetcher(client)
@@ -92,7 +93,7 @@ func main() {
 	}
 
 	start := processedLastBlock + 1
-	end := int64(latestBlockNumberOnchain - safeBlockDepth)
+	end := int64(latestBlockNumberOnchain - ingestionBlockDepth)
 	slog.Info("Indexing range determined", "lastProcessed", processedLastBlock, "latestOnchain", latestBlockNumberOnchain, "diff", latestBlockNumberOnchain-uint64(processedLastBlock))
 
 	runContinuous := getContinuous()
@@ -111,7 +112,19 @@ func main() {
 	// canceled when the signal is received.
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-
+	// run finality modelling in background
+	safeBlockDepth, err := getSafeBlockDepth()
+	if err != nil {
+		slog.Error("Failed to get safe block depth", "error", err)
+		os.Exit(1)
+	}
+	go func() {
+		err = idx.RunFinalizer(ctx, safeBlockDepth)
+		if err != nil {
+			slog.Error("Finalizer stopped with error", "error", err)
+		}
+	}()
+	// run indexer
 	startTime := time.Now()
 	lastProcessedBlock, err := idx.Run(ctx, start, end)
 	if err != nil {
@@ -135,7 +148,7 @@ func main() {
 				continue
 			}
 			start = lastProcessedBlock + 1
-			end = int64(latest) - int64(safeBlockDepth)
+			end = int64(latest) - int64(ingestionBlockDepth)
 			if start > end {
 				slog.Debug("No new blocks to index", "lastProcessed", lastProcessedBlock, "latest", latest)
 				continue
@@ -162,18 +175,18 @@ func getStartBlock() (uint64, error) {
 	}
 	return startBlock, nil
 }
-func getSafeBlockDepth() (uint64, error) {
-	var defaultBlockDepth uint64 = 12
-	safeBlockDepthStr, exist := os.LookupEnv(SafeBlockDepth)
+func getIngestionBlockDepth() (uint64, error) {
+
+	blockDepthStr, exist := os.LookupEnv(IngestionBlockDepth)
 	if !exist {
-		return defaultBlockDepth, nil // default safe block depth is 12
+		return defaultSafeBlockDepth, nil // default safe block depth is 12
 	}
-	safeBlockDepth, err := strconv.ParseUint(safeBlockDepthStr, 10, 64)
+	blockDepth, err := strconv.ParseUint(blockDepthStr, 10, 64)
 	if err != nil {
-		slog.Warn("Failed to parse safe block depth, using default", "error", err, "default", defaultBlockDepth)
-		return defaultBlockDepth, nil // default safe block depth is 12
+		slog.Warn("Failed to parse block depth, using default safe block depth", "error", err, "default", defaultSafeBlockDepth)
+		return defaultSafeBlockDepth, nil // default safe block depth is 12
 	}
-	return safeBlockDepth, nil
+	return blockDepth, nil
 }
 
 func getContinuous() bool {
@@ -200,4 +213,18 @@ func getBlockPollInterval() time.Duration {
 		d = time.Second
 	}
 	return d
+}
+
+func getSafeBlockDepth() (uint64, error) {
+
+	blockDepthStr, exist := os.LookupEnv(SafeBlockDepth)
+	if !exist {
+		return defaultSafeBlockDepth, nil // default safe block depth is 12
+	}
+	blockDepth, err := strconv.ParseUint(blockDepthStr, 10, 64)
+	if err != nil {
+		slog.Warn("Failed to parse block depth, using default safe block depth", "error", err, "default", defaultSafeBlockDepth)
+		return defaultSafeBlockDepth, nil // default safe block depth is 12
+	}
+	return blockDepth, nil
 }

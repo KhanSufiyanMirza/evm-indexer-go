@@ -108,6 +108,17 @@ func (s *Store) MarkBlockProcessed(ctx context.Context, blockNumber int64) error
 	return err
 }
 
+func (s *Store) MarkBlockFinalized(ctx context.Context, blockNumber int64) error {
+	_, err := retry(ctx, func() (bool, error) {
+		err := s.Store.MarkBlockFinalized(ctx, blockNumber)
+		if err != nil {
+			return false, err
+		}
+		return true, nil
+	})
+	return err
+}
+
 func (s *Store) GetLatestBlockNumber(ctx context.Context) (int64, error) {
 	return retry(ctx, func() (int64, error) {
 		blockNo, err := s.Store.GetLatestBlockNumber(ctx)

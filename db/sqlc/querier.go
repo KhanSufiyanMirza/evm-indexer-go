@@ -26,6 +26,7 @@ type Querier interface {
 	GetLatestProcessedBlockNumber(ctx context.Context) (int64, error)
 	ListBlocks(ctx context.Context, arg ListBlocksParams) ([]ListBlocksRow, error)
 	ListERC20TransfersByTxHash(ctx context.Context, arg ListERC20TransfersByTxHashParams) ([]ListERC20TransfersByTxHashRow, error)
+	MarkBlockFinalized(ctx context.Context, number int64) error
 	MarkBlockProcessed(ctx context.Context, number int64) error
 	MarkBlockReorgedRange(ctx context.Context, number int64) error
 	MarkERC20TransfersReorgedRange(ctx context.Context, blockNumber int64) error

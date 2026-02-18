@@ -143,6 +143,42 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 	}
 	return lastProcessedBlock, nil
 }
+func (i *Indexer) RunFinalizer(ctx context.Context, safeBlockDepth uint64) error {
+	ticker := time.NewTicker(time.Second * 12)
+	defer ticker.Stop()
+
+	var lastFinalizedBlock int64
+
+	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("Finalizer shutting down", "lastFinalizedBlock", lastFinalizedBlock)
+			return nil
+		case <-ticker.C:
+			opCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			blockNumber, err := i.fetcher.GetBlockNumberWithRetry(opCtx)
+			if err != nil {
+				slog.Error("Failed to get block number", "error", err)
+				cancel()
+				continue
+			}
+			finalityBlockNumber := int64(blockNumber) - int64(safeBlockDepth)
+			if finalityBlockNumber <= 0 || finalityBlockNumber <= lastFinalizedBlock {
+				cancel()
+				continue
+			}
+			err = i.store.MarkBlockFinalized(opCtx, finalityBlockNumber)
+			if err != nil {
+				slog.Error("Failed to mark block as finalized", "block", finalityBlockNumber, "error", err)
+				cancel()
+				continue
+			}
+			slog.Info("Finalized blocks", "upTo", finalityBlockNumber, "advanced", finalityBlockNumber-lastFinalizedBlock)
+			lastFinalizedBlock = finalityBlockNumber
+			cancel()
+		}
+	}
+}
 
 // findCommonAncestor steps back from startBlock verifying checks against canonical chain
 // Returns the block number of the first block that matches (Common Ancestor).

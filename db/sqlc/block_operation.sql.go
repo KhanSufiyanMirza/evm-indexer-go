@@ -242,6 +242,17 @@ func (q *Queries) ListBlocks(ctx context.Context, arg ListBlocksParams) ([]ListB
 	return items, nil
 }
 
+const markBlockFinalized = `-- name: MarkBlockFinalized :exec
+UPDATE blocks
+SET status = 'FINALIZED'
+WHERE number <= $1 AND is_canonical = TRUE AND status != 'FINALIZED'
+`
+
+func (q *Queries) MarkBlockFinalized(ctx context.Context, number int64) error {
+	_, err := q.db.Exec(ctx, markBlockFinalized, number)
+	return err
+}
+
 const markBlockProcessed = `-- name: MarkBlockProcessed :exec
 UPDATE blocks
 SET processed_at = NOW()

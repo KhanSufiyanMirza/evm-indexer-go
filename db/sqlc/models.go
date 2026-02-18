@@ -20,6 +20,7 @@ type Block struct {
 	CreatedAt       pgtype.Timestamp `json:"createdAt"`
 	IsCanonical     pgtype.Bool      `json:"isCanonical"`
 	ReorgDetectedAt pgtype.Timestamp `json:"reorgDetectedAt"`
+	Status          pgtype.Text      `json:"status"`
 }
 
 type Erc20Transfer struct {
