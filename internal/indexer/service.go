@@ -87,7 +87,7 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 			continue
 		}
 		// 2. Insert Block
-		// Note: CreateBlock uses ON CONFLICT DO NOTHING.
+		// Note: CreateBlock uses ON CONFLICT DO UPDATE is_canonical = TRUE and reorg_detected_at = NULL.
 		// If it exists, we get pgx.ErrNoRows (handled by store.SaveBlock).
 		// This is idempotent.
 		err = i.store.SaveBlock(opCtx, sqlc.CreateBlockParams{
@@ -127,7 +127,7 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 				TokenAddress: transferLog.Address.Hex(),
 			})
 		}
-		// Batch insert uses ON CONFLICT DO NOTHING for idempotency.
+		// Batch insert uses ON CONFLICT DO UPDATE is_canonical = TRUE and reorg_detected_at = NULL for idempotency.
 		err = i.store.SaveERC20TransferBatch(opCtx, batchParams)
 		if err != nil {
 			slog.Error("Failed to save ERC20 transfers", "block", num, "error", err)
