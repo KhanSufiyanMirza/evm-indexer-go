@@ -30,3 +30,22 @@ Attackers would exploit re-orgs.
 Infrastructure engineers design for:
 
 Worst-case, not happy-case.
+## Why business systems must query only finalized data?
+Ethereum does not guarantee that a freshly mined block will stay in the chain.
+Until enough confirmations pass:
+That block is a candidate truth, not permanent truth.
+When you wait for SAFE_BLOCK_DEPTH (e.g. 12 blocks):
+	•	Probability of re-org becomes extremely low
+	•	Exchanges treat funds as safe
+	•	You reduce financial reversal risk
+
+FINALIZED = high confidence data
+
+PENDING = tentative data
+
+## What Happens If Payments Rely on PENDING Blocks?
+PENDING = tentative data (it can be reverted) and it won't give level of confidence which require to process payments.
+it will enable double-spend risk and
+- it will break accounting rules
+- it will create financial risk
+- it will enable fraud

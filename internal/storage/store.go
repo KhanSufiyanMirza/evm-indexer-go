@@ -26,8 +26,8 @@ var (
 )
 
 // SaveBlock attempts to insert a block.
-// If the block already exists (pgx.ErrNoRows due to ON CONFLICT DO NOTHING),
-// it returns nil (treating it as success - Idempotency).
+// If the block already exists, ON CONFLICT (hash, number) DO UPDATE re-canonicalizes it
+// so re-insert after reorg marks the row is_canonical = TRUE.
 func (s *Store) SaveBlock(ctx context.Context, params sqlc.CreateBlockParams) error {
 	// uncomment count and log line to see retry attempts and error
 	// count := 0

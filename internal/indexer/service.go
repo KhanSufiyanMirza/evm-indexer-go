@@ -173,19 +173,19 @@ func (i *Indexer) RunFinalizer(ctx context.Context, safeBlockDepth uint64) error
 				cancel()
 				continue
 			}
-			finalityBlockNumber := int64(blockNumber) - int64(safeBlockDepth)
-			if finalityBlockNumber <= 0 || finalityBlockNumber <= lastFinalizedBlock {
+			finalizableHeight := int64(blockNumber) - int64(safeBlockDepth)
+			if finalizableHeight <= 0 || finalizableHeight <= lastFinalizedBlock {
 				cancel()
 				continue
 			}
-			err = i.store.MarkBlockFinalized(opCtx, finalityBlockNumber)
+			err = i.store.MarkBlockFinalized(opCtx, finalizableHeight)
 			if err != nil {
-				slog.Error("Failed to mark block as finalized", "block", finalityBlockNumber, "error", err)
+				slog.Error("Failed to mark block as finalized", "finalizableHeight", finalizableHeight, "error", err)
 				cancel()
 				continue
 			}
-			slog.Info("Finalized blocks", "upTo", finalityBlockNumber, "advanced", finalityBlockNumber-lastFinalizedBlock)
-			lastFinalizedBlock = finalityBlockNumber
+			slog.Info("Finalized blocks", "upTo", finalizableHeight, "advanced", finalizableHeight-lastFinalizedBlock)
+			lastFinalizedBlock = finalizableHeight
 			cancel()
 		}
 	}

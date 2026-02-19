@@ -25,7 +25,7 @@ func (q *Queries) CountBlocks(ctx context.Context) (int64, error) {
 const createBlock = `-- name: CreateBlock :one
 INSERT INTO blocks (hash, number, parent_hash, timestamp)
 VALUES ($1, $2, $3, $4)
-ON CONFLICT DO NOTHING
+ON CONFLICT (hash, number) DO UPDATE SET is_canonical = TRUE, reorg_detected_at = NULL
 RETURNING id, hash, number, parent_hash, timestamp
 `
 

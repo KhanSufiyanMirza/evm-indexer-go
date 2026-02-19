@@ -26,7 +26,7 @@ func (q *Queries) CountERC20Transfers(ctx context.Context) (int64, error) {
 const createERC20Transfer = `-- name: CreateERC20Transfer :one
 INSERT INTO erc20_transfers (tx_hash, log_index, from_address, to_address, value, block_number, token_address)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
-ON CONFLICT (tx_hash, log_index) DO NOTHING
+ON CONFLICT (tx_hash, log_index) DO UPDATE SET is_canonical = TRUE, reorg_detected_at = NULL
 RETURNING tx_hash, log_index, from_address, to_address, value, block_number, token_address
 `
 
