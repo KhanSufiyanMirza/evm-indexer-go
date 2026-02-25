@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/KhanSufiyanMirza/evm-indexer-go/internal/metrics"
 	"github.com/cenkalti/backoff/v5"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -58,10 +59,14 @@ func (bf *blockFetcher) Fetch(ctx context.Context, blockNumber uint64) (*types.B
 		slog.Info("Fetching block", "block", blockNumber, "attempt", count)
 		block, err := bf.client.BlockByNumber(ctx, big.NewInt(int64(blockNumber)))
 
-		if err != nil && !isRetryableError(err) {
-			slog.Error("Non-retryable RPC error", "error", err)
-
-			return nil, backoff.Permanent(err)
+		if err != nil {
+			if !isRetryableError(err) {
+				slog.Error("Non-retryable RPC error", "error", err, "type", "rpc_fatal")
+				metrics.RPCErrorsTotal.WithLabelValues("fatal").Inc()
+				return nil, backoff.Permanent(err)
+			}
+			slog.Warn("Retryable RPC error", "error", err, "type", "rpc_retry")
+			metrics.RPCErrorsTotal.WithLabelValues("retryable").Inc()
 		}
 		count++
 		return block, err
@@ -80,9 +85,14 @@ func (bf *blockFetcher) GetBlockNumberWithRetry(ctx context.Context) (uint64, er
 		slog.Info("Fetching block number", "attempt", count)
 		blockNumber, err := bf.client.BlockNumber(ctx)
 
-		if err != nil && !isRetryableError(err) {
-			slog.Error("Non-retryable RPC error", "error", err)
-			return 0, backoff.Permanent(err)
+		if err != nil {
+			if !isRetryableError(err) {
+				slog.Error("Non-retryable RPC error", "error", err, "type", "rpc_fatal")
+				metrics.RPCErrorsTotal.WithLabelValues("fatal").Inc()
+				return 0, backoff.Permanent(err)
+			}
+			slog.Warn("Retryable RPC error", "error", err, "type", "rpc_retry")
+			metrics.RPCErrorsTotal.WithLabelValues("retryable").Inc()
 		}
 		count++
 		return blockNumber, err
@@ -106,9 +116,14 @@ func (bf *blockFetcher) GetLogsInRange(ctx context.Context, startBlock, endBlock
 		}
 		logs, err := bf.client.FilterLogs(ctx, query)
 
-		if err != nil && !isRetryableError(err) {
-			slog.Error("Non-retryable RPC error fetching logs", "error", err)
-			return nil, backoff.Permanent(err)
+		if err != nil {
+			if !isRetryableError(err) {
+				slog.Error("Non-retryable RPC error fetching logs", "error", err, "type", "rpc_fatal")
+				metrics.RPCErrorsTotal.WithLabelValues("fatal").Inc()
+				return nil, backoff.Permanent(err)
+			}
+			slog.Warn("Retryable RPC error fetching logs", "error", err, "type", "rpc_retry")
+			metrics.RPCErrorsTotal.WithLabelValues("retryable").Inc()
 		}
 		count++
 		return logs, err
@@ -132,9 +147,14 @@ func (bf *blockFetcher) GetERC20TransfersInRange(ctx context.Context, startBlock
 		}
 		logs, err := bf.client.FilterLogs(ctx, query)
 
-		if err != nil && !isRetryableError(err) {
-			slog.Error("Non-retryable RPC error fetching ERC20 transfer logs", "error", err)
-			return nil, backoff.Permanent(err)
+		if err != nil {
+			if !isRetryableError(err) {
+				slog.Error("Non-retryable RPC error fetching ERC20 transfer logs", "error", err, "type", "rpc_fatal")
+				metrics.RPCErrorsTotal.WithLabelValues("fatal").Inc()
+				return nil, backoff.Permanent(err)
+			}
+			slog.Warn("Retryable RPC error fetching ERC20 transfer logs", "error", err, "type", "rpc_retry")
+			metrics.RPCErrorsTotal.WithLabelValues("retryable").Inc()
 		}
 		count++
 		return logs, err

@@ -9,6 +9,7 @@ import (
 
 	"github.com/KhanSufiyanMirza/evm-indexer-go/db/sqlc"
 	"github.com/KhanSufiyanMirza/evm-indexer-go/internal/gateway"
+	"github.com/KhanSufiyanMirza/evm-indexer-go/internal/metrics"
 	"github.com/KhanSufiyanMirza/evm-indexer-go/internal/storage"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -39,15 +40,18 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 		// even if the shutdown signal is received mid-processing, but with a bounded deadline.
 		opCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 
+		// Start timing block processing duration
+		startTimer := time.Now()
+
 		previousBlock, err := i.store.GetBlockByNumber(opCtx, num-1)
 		isFirstRun := false
 		if err != nil {
 			if errors.Is(err, storage.ErrBlockNotFound) {
 				isFirstRun = true
 			} else {
-				slog.Error("Failed to get previous block", "block", num-1, "error", err)
+				slog.Error("Failed to get previous block", "block", num-1, "error", err, "type", "db_fatal")
 				cancel()
-				return lastProcessedBlock, fmt.Errorf("failed to get previous block %d: %w", num-1, err)
+				return lastProcessedBlock, fmt.Errorf("fatal db error getting previous block %d: %w", num-1, err)
 			}
 		}
 
@@ -60,6 +64,7 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 		}
 
 		if !isFirstRun && previousBlock.Hash != block.ParentHash().String() {
+			metrics.ReorgDetectedTotal.Inc()
 			slog.Warn("Reorg detected", "block", num, "dbHash", previousBlock.Hash, "parentHash", block.ParentHash().String())
 
 			// 1. Find Common Ancestor
@@ -73,10 +78,17 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 			// 2. Rollback
 			err = i.store.MarkBlockReorgedRange(opCtx, ancestorBlockNumber)
 			if err != nil {
+				slog.Error("Failed to rollback data after reorg", "ancestor", ancestorBlockNumber, "error", err, "type", "db_fatal")
 				cancel()
-				return lastProcessedBlock, fmt.Errorf("failed to rollback from block %d: %w", ancestorBlockNumber, err)
+				return lastProcessedBlock, fmt.Errorf("fatal db error rolling back from block %d: %w", ancestorBlockNumber, err)
 			}
+			reorgDepth := num - ancestorBlockNumber
 			slog.Info("Rolled back data above block", "block", ancestorBlockNumber)
+
+			// Alerting mindset: Check reorg depth
+			if reorgDepth > 3 {
+				slog.Warn("ALERT: Deep Reorg Detected", "depth", reorgDepth, "ancestor", ancestorBlockNumber)
+			}
 
 			// 3. Resume
 			// Set loop variable `num` to ancestorBlockNumber.
@@ -97,9 +109,9 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 			Timestamp:  time.Unix(int64(block.Time()), 0),
 		})
 		if err != nil {
-			slog.Error("Failed to save block", "block", num, "error", err)
+			slog.Error("Failed to save block", "block", num, "error", err, "type", "db_fatal")
 			cancel()
-			return lastProcessedBlock, fmt.Errorf("failed to save block %d: %w", num, err)
+			return lastProcessedBlock, fmt.Errorf("fatal db error saving block %d: %w", num, err)
 		}
 
 		// 3. Insert ERC20 Transfers (batch)
@@ -130,24 +142,27 @@ func (i *Indexer) Run(ctx context.Context, startBlock, endBlock int64) (int64, e
 		// Batch insert uses ON CONFLICT DO UPDATE is_canonical = TRUE and reorg_detected_at = NULL for idempotency.
 		err = i.store.SaveERC20TransferBatch(opCtx, batchParams)
 		if err != nil {
-			slog.Error("Failed to save ERC20 transfers", "block", num, "error", err)
+			slog.Error("Failed to save ERC20 transfers", "block", num, "error", err, "type", "db_fatal")
 			cancel()
-			return lastProcessedBlock, fmt.Errorf("failed to save ERC20 Transfers for block %d: %w", num, err)
+			return lastProcessedBlock, fmt.Errorf("fatal db error saving ERC20 Transfers for block %d: %w", num, err)
 		}
 		slog.Info("Indexed ERC20 transfers", "block", num, "count", len(batchParams))
 
 		// 3. Mark Processed (Guard)
-		// This step is conceptually mostly for tracking or if we had downstream jobs.
-		// Since we process sequentially here, the "SaveBlock" already essentially checkpoints us.
-		// However, updating `processed_at` allows us to differentiate "inserted but crashed" vs "fully done".
 		err = i.store.MarkBlockProcessed(opCtx, num)
 		if err != nil {
-			slog.Error("Failed to mark block as processed", "block", num, "error", err)
+			slog.Error("Failed to mark block as processed", "block", num, "error", err, "type", "db_fatal")
 			cancel()
-			return lastProcessedBlock, fmt.Errorf("failed to mark block %d as processed: %w", num, err)
+			return lastProcessedBlock, fmt.Errorf("fatal db error marking block %d as processed: %w", num, err)
 		}
 
 		lastProcessedBlock = num
+
+		// 4. Update metrics and observability
+		metrics.BlocksProcessedTotal.Inc()
+		metrics.CurrentBlockHeight.Set(float64(num))
+		metrics.BlockProcessingDuration.Observe(time.Since(startTimer).Seconds())
+
 		slog.Info("Successfully indexed block", "block", num)
 		slog.Info("----------------- -----------------")
 		cancel()
@@ -180,12 +195,26 @@ func (i *Indexer) RunFinalizer(ctx context.Context, safeBlockDepth uint64) error
 			}
 			err = i.store.MarkBlockFinalized(opCtx, finalizableHeight)
 			if err != nil {
-				slog.Error("Failed to mark block as finalized", "finalizableHeight", finalizableHeight, "error", err)
+				slog.Error("Failed to mark block as finalized", "finalizableHeight", finalizableHeight, "error", err, "type", "db_fatal")
 				cancel()
 				continue
 			}
 			slog.Info("Finalized blocks", "upTo", finalizableHeight, "advanced", finalizableHeight-lastFinalizedBlock)
 			lastFinalizedBlock = finalizableHeight
+
+			// Lag Detection on Finalizer (as it polls regularly and knows the tip)
+			// Compute lag based on the latest saved index block compared to the tip block
+			// Normally, we could calculate it in the Run loop, but checking here gets continuous async checks
+			indexTipBlock, err := i.store.GetLatestProcessedBlockNumber(opCtx)
+			if err == nil {
+				lag := int64(blockNumber) - indexTipBlock
+				threshold := int64(safeBlockDepth * 2)
+				if lag > threshold {
+					metrics.LagEventsTotal.Inc()
+					slog.Warn("ALERT: High Lag Detected", "lag", lag, "threshold", threshold, "type", "lag_alert")
+				}
+			}
+
 			cancel()
 		}
 	}

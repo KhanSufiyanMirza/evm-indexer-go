@@ -14,12 +14,14 @@ import (
 	"github.com/KhanSufiyanMirza/evm-indexer-go/db/sqlc"
 	"github.com/KhanSufiyanMirza/evm-indexer-go/internal/gateway"
 	"github.com/KhanSufiyanMirza/evm-indexer-go/internal/indexer"
+	"github.com/KhanSufiyanMirza/evm-indexer-go/internal/metrics"
 	"github.com/KhanSufiyanMirza/evm-indexer-go/internal/storage"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 const (
 	RpcUrl                = "RPC_URL"
+	MetricsPort           = "METRICS_PORT"
 	StartBlock            = "START_BLOCK"
 	SafeBlockDepth        = "SAFE_BLOCK_DEPTH"
 	defaultSafeBlockDepth = 12
@@ -30,6 +32,12 @@ const (
 )
 
 func main() {
+	metricsPort, exist := os.LookupEnv(MetricsPort)
+	if !exist || metricsPort == "" {
+		metricsPort = "9090"
+	}
+	metrics.InitMetricsServer(":" + metricsPort)
+
 	// 1. Setup Database using existing sqlc.NewStore
 	sqlcStore, err := sqlc.NewStore()
 	if err != nil {
@@ -75,6 +83,7 @@ func main() {
 		slog.Error("Failed to get latest block", "error", err)
 		os.Exit(1)
 	}
+	metrics.ChainTipHeight.Set(float64(latestBlockNumberOnchain))
 	slog.Info("Latest onchain block", "block", latestBlockNumberOnchain)
 
 	processedLastBlock, err := storageStore.GetLatestProcessedBlockNumber(context.Background())
@@ -147,6 +156,7 @@ func main() {
 				slog.Error("Failed to get latest block in continuous mode", "error", err)
 				continue
 			}
+			metrics.ChainTipHeight.Set(float64(latest))
 			start = lastProcessedBlock + 1
 			end = int64(latest) - int64(ingestionBlockDepth)
 			if start > end {
