@@ -38,6 +38,12 @@ START_BLOCK=24347029
 # CONTINUOUS=true
 # Optional: poll interval in continuous mode (default 12s, ~1 Ethereum block)
 # BLOCK_POLL_INTERVAL=12s
+# Optional: port for Prometheus metrics (default 9090)
+# METRICS_PORT=9090
+# Optional: ingestion block depth (default 12)
+# INGESTION_BLOCK_DEPTH=12
+# Optional: safe block depth (default 12)
+# SAFE_BLOCK_DEPTH=12
 ```
 
 ### 3. Start Infrastructure
@@ -90,6 +96,14 @@ The project includes a `makefile` to simplify common development tasks. Run `mak
 - `internal/`: Private application code
 - `docker-compose.yaml`: Infrastructure definition
 - `makefile`: Task automation
+## Observability & Metrics
+
+The indexer features comprehensive, production-ready observability:
+- **Prometheus Metrics:** Exposed at `http://localhost:9090/metrics` (configurable via `METRICS_PORT`). Tracks `blocks_processed_total`, `rpc_errors_total` (by type), `reorg_detected_total`, `lag_events_total`, and `block_processing_duration_seconds`.
+- **Active Lag Detection:** Computes the lag between the chain tip and the last processed block. If lag exceeds `SAFE_BLOCK_DEPTH * 2`, it logs an `ALERT: High Lag Detected` event.
+- **Structured Error Classification:** Distinguishes between `rpc_retry` (transient timeouts or rate limits) and `db_fatal` or `rpc_fatal` (critical failures) using structured logging.
+- **Graceful Shutdown & Data Idempotency:** Safely handles SIGINT/SIGTERM, finalizing current blocks, and prevents duplicate data using PostgreSQL `ON CONFLICT` patterns.
+
 ## FAQs
 ### How logs are fetched?
 - Block-based range
@@ -99,11 +113,7 @@ The project includes a `makefile` to simplify common development tasks. Run `mak
 - multiple logs per txn and to uniquely identify txn
 - to prevent duplicate logs and overwriting
 - enables idempotency
-### failure scenario handled
-- RPC timeout
-- Process crash mid-block (restart from last processed block)
-- Duplicate block processing
-- Partial log insert
+
 ### What this indexer does?
 - Fetches blocks from the Ethereum node
 - Parses logs from the blocks
@@ -123,6 +133,11 @@ The project includes a `makefile` to simplify common development tasks. Run `mak
 - Network errors
 - re-orgs
 ### Rollback strategy for reorg?
-we have decided soft delete model.
-is_canonical flag is used to identify if the block is canonical or not.
+We use a soft-delete model.
+`is_canonical` flag is used to identify if the block is canonical or not.
 
+### What triggers an alert?
+- **High Lag:** Exceeding `SAFE_BLOCK_DEPTH * 2` (indicates the indexer is falling behind).
+- **Deep Re-orgs:** Re-organization depth greater than 3 blocks.
+- **Process Down / DB Fatal Errors:** Critical issues like missing schemas or corrupted states.
+- **Continuous RPC Failures:** When the configured node goes entirely offline or rejects requests consistently.
